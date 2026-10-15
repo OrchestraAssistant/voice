@@ -3,7 +3,7 @@
 // Two engines with DIFFERENT capabilities, so the engine picker and the
 // capability-adaptive controls can be exercised with no relay, no keys and no
 // network: one full-duplex "realtime" engine (warms, push-to-talk, barge-in)
-// and one "on-device cascade" engine that can only do continuous + text. Both
+// and one "text-only" engine that can only do continuous + text. Both
 // are real provider objects satisfying the contract (see PROVIDERS.md); their
 // sessions just echo instead of talking to a model.
 //

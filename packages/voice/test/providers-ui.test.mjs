@@ -6,8 +6,8 @@ import { clickTab, launchBrowser, preparePage, startHarness } from "./harness.mj
  * The engine picker, driven in a real browser.
  *
  * `providers=multi` mounts two fake engines (dev/fake-providers.js) with
- * DIFFERENT capabilities: a full-duplex "realtime" one and an "on-device"
- * cascade that can only do continuous + text. The point of this suite is the
+ * DIFFERENT capabilities: a full-duplex "realtime" one and a
+ * text-only engine that can only do continuous + text. The point of this suite is the
  * thing a unit test cannot reach -- that picking an engine in Settings swaps
  * the live pipeline AND that the controls adapt to what it can do, so a user
  * never sees a push-to-talk button an engine cannot honour.
@@ -69,7 +69,7 @@ describe("the engine picker", () => {
   test("offers both wired engines", async () => {
     const buttons = await widgetButtons(page);
     assert.ok(buttons.some((t) => t.includes("Realtime (fake)")), `engine list missing realtime: ${buttons}`);
-    assert.ok(buttons.some((t) => t.includes("On-device (fake cascade)")), `engine list missing cascade: ${buttons}`);
+    assert.ok(buttons.some((t) => t.includes("Text-only (fake)")), `engine list missing the text-only engine: ${buttons}`);
   });
 
   test("the full-duplex engine offers push-to-talk", async () => {
@@ -77,12 +77,12 @@ describe("the engine picker", () => {
     assert.ok(buttons.some((t) => t.includes("Push to talk")), `realtime should offer PTT: ${buttons}`);
   });
 
-  test("switching to the cascade engine drops the modes it cannot do", async () => {
-    await clickRow(page, "On-device (fake cascade)");
+  test("switching to the text-only engine drops the modes it cannot do", async () => {
+    await clickRow(page, "Text-only (fake)");
     await page.waitForTimeout(150);
     const buttons = await widgetButtons(page);
     assert.ok(buttons.some((t) => t.includes("Continuous")), "continuous is always available");
-    assert.ok(!buttons.some((t) => t.includes("Push to talk")), `cascade cannot PTT, so the row must go: ${buttons}`);
+    assert.ok(!buttons.some((t) => t.includes("Push to talk")), `the text-only engine cannot PTT, so the row must go: ${buttons}`);
     assert.ok(!buttons.some((t) => t.includes("Push to not talk")), "ptnt row must go too");
   });
 
