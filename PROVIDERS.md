@@ -3,8 +3,9 @@
 `@expert/voice` is a **core** (a React widget, a browser executor, a
 confirmation gate, a manifest runtime) with a **swappable provider** for the
 voice-to-action pipeline — the same shape the Vercel AI SDK has (`ai` core +
-`@ai-sdk/openai` / `@ai-sdk/anthropic` / custom providers). You pick a provider,
-or you bring your own.
+`@ai-sdk/openai` / `@ai-sdk/anthropic`). A provider adapts one realtime voice
+API (OpenAI Realtime today) to the widget; the contract is how another one, such
+as ElevenLabs Agents or Gemini Live, plugs in.
 
 ```
    voice in ──►  [ PROVIDER ]  ──► decided tool call ──►  [ EXECUTOR ]  ──► your app
@@ -26,15 +27,15 @@ These never move with the provider, and that is the point:
    **in the browser**, against the app's own API (the user's cookies) and the
    live DOM. A provider never executes a tool; it only *proposes* one.
 3. **The confirmation gate** — destructive actions stage in the executor and wait
-   for a yes. A provider cannot bypass it. **BYOA is not BYO-security-holes.**
+   for a yes. A provider cannot bypass it.
 4. **The UI** — `VoiceProvider` state, the rim, the panel — driven by callbacks.
 
 ## What a provider owns
 
 1. A client **`VoiceSession`** — the transport and the live voice loop.
 2. A server **half**, if it needs credentials — where keys live (see BYOK). For
-   the OpenAI Realtime provider this is the relay; a cascade provider might reuse
-   the app's own backend; a local provider may need none. **The relay is part of
+   the OpenAI Realtime provider this is the relay (the `/voice` route); another
+   realtime API needs its own equivalent, usually a token mint. **The relay is part of
    the OpenAI provider, not the framework.**
 
 ---
@@ -114,9 +115,9 @@ interface VoiceSession {
 ```
 
 The method names lean on the voice-session vocabulary, not any one vendor's wire
-protocol; a cascade provider implements `clearInputBuffer`/`commitAndRespond` as
-"start/finish a held turn" over its own transport, `cancelResponse` as "stop the
-TTS + abort the in-flight generation," and so on.
+protocol; another realtime API implements `clearInputBuffer`/`commitAndRespond`
+as "start/finish a held turn" over its own transport, `cancelResponse` as "stop
+speaking and abort the in-flight response," and so on.
 
 ### `Capabilities` — so the UI adapts
 
@@ -151,7 +152,7 @@ type ToolCatalog = Array<{
 ```
 
 Most providers re-project this into *their* model's tool format — OpenAI function
-schemas, a JEV `choice` question, a Pipecat tool list. The **manifest stays the
+schemas, ElevenLabs client tools. The **manifest stays the
 single source**; only the projection is provider-specific. (For the OpenAI
 provider, that projection lives server-side in the relay, so the tool list the
 model sees is authoritative and a tampered browser cannot redefine it.)
@@ -169,15 +170,13 @@ goes through the provider's server half; the browser half is always keyless.**
 - **OOTB:** the relay is the broker. BYOK means running it with *your*
   `OPENAI_API_KEY` (and, if exposed, a `VOICE_RELAY_SECRET` — see the README's
   "Securing the relay").
-- **BYOA:** point the broker at *your* endpoint (your Pipecat server, your own
-  proxy). Your key, your infra.
-- Even a "client-side" cascade routes its LLM/STT/TTS calls through the broker —
-  otherwise the key would be in the page. That single rule holds for every
-  provider.
+- **Another realtime API:** its server half mints that vendor's short-lived
+  session token from *your* key. Your key, your infra. The rule holds for every
+  provider: the key never reaches the page.
 
 ---
 
-## BYOA — build your own provider
+## Adding another realtime API
 
 Implement the factory and hand it to the widget:
 
@@ -185,11 +184,11 @@ Implement the factory and hand it to the widget:
 import { VoiceProvider } from "@expert/voice";
 
 const myProvider = () => ({
-  id: "my-cascade",
+  id: "my-realtime",
   capabilities: { pushToTalk: true, bargeIn: true, textInput: true, warm: false },
   async connect({ toolCatalog, callbacks, withMic, signal }) {
-    // 1. open your transport / start your STT-LLM-TTS (or Pipecat) loop
-    // 2. project toolCatalog into your model's tool format
+    // 1. open the vendor's realtime session (WebRTC / WebSocket)
+    // 2. project toolCatalog into the vendor's tool format
     // 3. when the model decides an action:
     //       const result = await callbacks.onToolCall(name, args);
     //       // feed result back to your model
@@ -222,19 +221,11 @@ engines the app has wired; the widget shows them in Settings and the user
 switches live:
 
 ```jsx
-// moonshineStt runs the model in-browser via transformers.js (a heavy optional
-// dep the core does NOT bundle): install @huggingface/transformers and pass it as
-// loadTransformers, or moonshineStt throws on connect.
-const moonshine = moonshineJev({
-  stt: moonshineStt({ loadTransformers: () => import("@huggingface/transformers"), size: "base" }),
-  ...jevBroker(""), // evaluate + generateText via the mounted broker route
-});
-
 <VoiceProvider
   manifest={manifest}
   providers={[
-    { label: "OpenAI Realtime",        provider: openaiRealtime({ relayUrl }) },
-    { label: "On-device (Moonshine)",  provider: moonshine },
+    { label: "OpenAI Realtime", provider: openaiRealtime({ relayUrl }) },
+    { label: "Other realtime",  provider: myRealtime() },  // see "Adding another realtime API"
   ]}
 >
   <Interpreter/>
@@ -245,7 +236,7 @@ Three things make this well-behaved, and they are why it is a list of providers
 and not a list of model strings:
 
 - **The app offers, the user picks.** Each engine needs its own server half
-  wired (a relay for Realtime, a JEV/STT broker for the cascade), so the dev
+  wired (a token mint for each realtime API), so the dev
   decides what is *available* — you cannot offer an engine you have not keyed.
   The user chooses among the available ones. (`providers` and the singular
   `provider` are the same prop at list length 0 and 1; omit both for the default
@@ -253,7 +244,7 @@ and not a list of model strings:
 - **A switch is a reconnect, and the credential is dropped.** Unlike model or
   language — parameters to *one* engine — an engine is a whole implementation, so
   changing it tears the session down and builds the new one. A minted Realtime
-  key means nothing to a JEV broker, so it is discarded on the switch.
+  key means nothing to another vendor, so it is discarded on the switch.
 - **The controls follow `capabilities`.** Switch to an engine that cannot
   push-to-talk and the PTT/PTNT modes disappear; switch to one with no relay
   model list and the Model/Language rows go with it. A weaker engine shows fewer
@@ -269,12 +260,11 @@ only while it is live.
 
 ```
 @expert/voice            core: the widget, the executor, the gate, the manifest
-                         runtime, AND the client halves of every provider
-                         (openaiRealtime, moonshineJev, parakeetJev, jevBroker)
+                         runtime, AND the client half of the provider
+                         (openaiRealtime)
 @expert/voice-cli        the manifest generator (build-time)
 @expert/voice-server     the SERVER halves, as mountable Web handlers:
                            /openai  -> openaiVoiceHandler   (the realtime relay)
-                           /jev     -> jevBrokerHandler + openaiText (the cascade broker)
 ```
 
 The split is by **side**, not by provider: client halves live in the core (so the
@@ -295,19 +285,11 @@ import { openaiVoiceHandler } from "@expert/voice-server/openai";
 const h = openaiVoiceHandler();            // OPENAI_API_KEY from env; serves /options,/session,/log
 export const GET = h; export const POST = h;
 //   client: <VoiceProvider relayUrl="" provider={openaiRealtime()}>   (same origin)
-
-// JEV cascade — app/voice/[...path]/route.ts
-import { jevBrokerHandler, openaiText } from "@expert/voice-server/jev";
-export const POST = jevBrokerHandler({ generate: openaiText() });  // JEV_API_KEY + OPENAI_API_KEY
-//   client: provider={moonshineJev({ stt: moonshineStt(), ...jevBroker("") })}
 ```
 
-Both expose `toExpressHandler` for non-Web-standard backends. The three server
-shapes differ (see "Where voice is NOT the AI SDK"): the realtime handler is a
-**mint** (one call per session, cheap on serverless); the JEV broker is a
-**per-turn proxy** (hit every turn — put it at the edge for a real app); a
-server-brain pipeline would need a **long-lived connection**, which a route
-handler cannot express.
+`toExpressHandler` adapts it for non-Web-standard backends. The handler is a
+**mint**: one call per session, cheap on serverless. The audio then flows
+between the browser and the vendor directly.
 
 ---
 
@@ -321,50 +303,23 @@ handler cannot express.
    is it.
 2. **Tool execution is local and fixed.** The provider proposes tool calls via
    `onToolCall`; the *core* executes them in the browser (cookies + DOM). A
-   **server-brain** provider (Pipecat) must therefore **bridge** its model's tool
-   calls down to the browser and the result back up. The interface supports it —
-   `onToolCall` is just fired from the provider's transport — but that bridge is
-   the real work for a server-side pipeline.
+   **server-side** realtime agent must therefore **bridge** its model's tool
+   calls down to the browser and the result back up. Prefer realtime APIs that
+   support client-side tools, where `onToolCall` fires in the page.
 3. **Safety is the core's, not the provider's.** The confirmation gate lives in
    the executor, so a custom provider can only ever *propose* a destructive
    action; the core stages and confirms it.
 
 ---
 
-## Reference: the Parakeet + JEV cascade provider
-
-`providers/parakeetJev.js` is a second, non-integrated provider that proves the
-contract on a different stack: **NVIDIA Parakeet** (STT) + **JEV** (routing &
-closed-set decisions) + a small **text model** (free-text args and spoken
-replies) + **TTS**. Every service is an injected client, so keys live in the
-dev's broker:
-
-```js
-parakeetJev({ stt, evaluate, generateText, tts })
-```
-
-Its decision engine (`providers/jevDecide.js`) is the JEV cascade in practice:
-two cheap closed-set `evaluate()` calls route the turn and pick the operation and
-its enum/boolean args; a **required free-text/number/date arg** returns
-`needsText` (derived from the chosen op's manifest params, *not* from asking JEV),
-and the provider fills it with `generateText`. That is the split the whole design
-turns on — JEV for the closed-set majority, a text model only for the free-text
-slots. "delete the groceries task" lands in the `generateText` branch; "switch to
-dark mode" and "turn on notifications" are pure JEV choices.
-
 ## Status
 
-- **Shipped:** the contract; the reference **`openaiRealtime`** provider; the
-  **`parakeetJev`** / **`moonshineJev`** cascade references + their JEV decision
-  engine (tested with injected fakes — the real Parakeet/JEV/TTS/STT services are
-  the dev's to wire); and the core `VoiceProvider` **routed through the provider
-  contract as its single path** — `warm`/`connect`/`mint` all go through the
-  active provider, so `provider`/`providers` select the engine and a live
-  **engine picker** switches among several (capability-adaptive controls, driven
-  in-browser by `test/providers-ui.test.mjs`); and **`@expert/voice-server`** —
-  the mountable server halves (`/openai` relay, `/jev` broker + `openaiText`) so a
-  host owns the backend as one route in its own app, with `jevBroker()` the client
-  half in the core.
-- **Next:** a Pipecat / server-brain bridge provider (needs the long-lived-connection
-  server shape, not a route handler); graduating each provider's client half into its
-  own package to match `@expert/voice-server`'s per-provider server entries.
+- **Shipped:** the contract; the **`openaiRealtime`** provider; the core
+  `VoiceProvider` routed through the contract as its single path (`warm`,
+  `connect` and `mint` all go through the active provider, and a live **engine
+  picker** switches among several, with capability-adaptive controls driven
+  in-browser by `test/providers-ui.test.mjs`); and **`@expert/voice-server`**,
+  the mountable server half, so a host owns the backend as one route in its own
+  app.
+- **Next:** adapters for other realtime voice APIs that support client-side
+  tools.

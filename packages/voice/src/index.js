@@ -53,16 +53,6 @@ export { PALETTES, SWATCHES } from "./palettes.js";
 
 // Providers -- the swappable voice-to-action pipeline (see PROVIDERS.md).
 // `openaiRealtime()` is the reference provider; implement the same contract
-// (a { id, capabilities, connect } object) to bring your own architecture.
+// (a { id, capabilities, connect } object) to plug in another realtime voice API.
 export { openaiRealtime } from "./providers/openaiRealtime.js";
-// Cascade providers: STT + JEV (decision) + a text model + TTS, all injected
-// (BYOK). parakeetJev runs STT on your server; moonshineJev runs it in the
-// browser (pair it with moonshineStt). Both are the same loop (jevCascade).
-export { parakeetJev } from "./providers/parakeetJev.js";
-export { moonshineJev } from "./providers/moonshineJev.js";
-export { jevCascade } from "./providers/jevCascade.js";
-export { moonshineStt } from "./providers/moonshineStt.js";
-// Client half of the cascade broker: points evaluate/generateText at a route your
-// app serves (jevBrokerHandler from @expert/voice-server/jev). Keys stay server-side.
-export { jevBroker } from "./providers/jevBroker.js";
 export { toolCatalog, validateProvider, REALTIME_CAPABILITIES } from "./providers/contract.js";

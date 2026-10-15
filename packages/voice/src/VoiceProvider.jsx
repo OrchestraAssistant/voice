@@ -18,8 +18,6 @@ const InterpreterContext = createContext(null);
 // the host passes a bare provider rather than a { label, provider } entry.
 const PROVIDER_LABELS = {
   "openai-realtime": "OpenAI Realtime",
-  "parakeet-jev": "Parakeet + JEV",
-  "moonshine-jev": "On-device (Moonshine + JEV)",
 };
 
 /**
@@ -102,7 +100,7 @@ export function VoiceProvider({
    * -- { id, capabilities, connect } (see PROVIDERS.md) -- or a { label, provider }
    * pair to name it in the engine picker. The host passes the providers it has
    * actually wired, because each needs its own server half (the relay for
-   * OpenAI Realtime, a JEV/STT broker for a cascade); the user then picks among
+   * OpenAI Realtime, whatever another realtime API needs); the user then picks among
    * them in Settings, the same way they pick a model.
    *
    * Omitted, it defaults to the OpenAI Realtime reference provider pointed at
@@ -916,11 +914,11 @@ export function VoiceProvider({
   const setLanguage = (next) => reconfigure(() => setLanguageState(next), { language: next });
 
   /**
-   * Switch the whole pipeline -- OpenAI Realtime to Moonshine+JEV, say. Unlike
+   * Switch the whole pipeline -- OpenAI Realtime to another realtime API. Unlike
    * model/language this is a different IMPLEMENTATION, not a parameter, so it is
    * always a reconnect (a live session is torn down). A minted credential is
    * provider-specific, so it is dropped: an ephemeral key for Realtime means
-   * nothing to a JEV broker. And a provider that cannot push-to-talk cannot be
+   * nothing to another provider. And a provider that cannot push-to-talk cannot be
    * left in ptt/ptnt, so the mode falls back to continuous.
    */
   const setProvider = (id) => {

@@ -50,9 +50,9 @@ export function fakeProviders() {
       },
     },
     {
-      label: "On-device (fake cascade)",
+      label: "Text-only (fake)",
       provider: {
-        id: "moonshine-jev",
+        id: "fake-text-only",
         // Only continuous + text: no held turn, no interrupting a reply, no warm.
         capabilities: { pushToTalk: false, bargeIn: false, textInput: true, warm: false },
         connect: (deps) => fakeSession(deps, { speaks: false }),

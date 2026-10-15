@@ -45,7 +45,7 @@
 
 /**
  * The manifest, projected to a neutral tool list a provider re-projects into its
- * own model's format (OpenAI function schema, a JEV choice, a Pipecat tool...).
+ * own model's format (OpenAI function schema, an ElevenLabs client tool...).
  * The manifest stays the single source; only the projection is provider-specific.
  * Build-time review flags and date-encoding metadata are dropped -- they are not
  * the model's business.

@@ -131,7 +131,7 @@ gets them. You do not run a separate service: you **mount one route in this same
 app**, served by `@expert/voice-server` (installed in step 1). The recipe is the
 same whatever the engine:
 
-> **set the keys in env → mount the provider's handler at `/voice` → the widget
+> **set the key in env → mount the handler at `/voice` → the widget
 > (same-origin, step 3) calls it.**
 
 **OpenAI Realtime (the default engine).** The handler serves the whole `/voice`
@@ -166,45 +166,7 @@ How to tell what's wrong: no key in the env → `/voice/session` returns
 reports `Could not reach the voice relay at … Is it running?` (or `answered 404
 with no JSON`). Both mean the route above is not mounted-and-keyed yet.
 
-**Alternative: a JEV cascade (browser-local Moonshine STT + JEV + a text model).**
-Mount the broker instead, which holds the JEV key and your text-model key:
-
-```ts
-// app/voice/[...path]/route.ts
-import { jevBrokerHandler, openaiText } from "@expert/voice-server/jev";
-export const POST = jevBrokerHandler({ generate: openaiText() }); // JEV_API_KEY + OPENAI_API_KEY from env
-```
-
-Moonshine runs the speech model IN THE BROWSER via transformers.js, which is a
-heavy optional dependency the core does NOT bundle — so you install it in the app
-and hand it to `moonshineStt` as `loadTransformers`. Skip this and the widget
-reports `moonshineStt needs { loadTransformers: ... }` and does nothing:
-
-```
-npm install @huggingface/transformers
-```
-
-```jsx
-// the client half: STT runs in the browser, keys stay on the route above
-import { VoiceProvider, Interpreter, moonshineJev, moonshineStt, jevBroker } from "@expert/voice";
-
-const stt = moonshineStt({
-  loadTransformers: () => import("@huggingface/transformers"), // REQUIRED — you install this dep
-  size: "base",                                                // or "tiny" for the wasm fallback
-});
-
-<VoiceProvider manifest={manifest} navigate={(p) => router.push(p)}
-  provider={moonshineJev({ stt, ...jevBroker("") })}>
-  <Interpreter />
-</VoiceProvider>
-```
-
-(Moonshine needs WebGPU or a WASM fallback; `size: "base"` is accurate on WebGPU,
-`"tiny"` is lighter for WASM. The broker above is the only server piece.)
-
-Offer several engines at once by passing `providers={[{label, provider}, …]}`
-instead of one — the user picks in Settings. The full contract (every provider's
-deps, the BYOK rule, writing your own) is **PROVIDERS.md**, which ships inside
+The full provider contract (the BYOK rule, plugging in another realtime API) is **PROVIDERS.md**, which ships inside
 `@expert/voice` (`node_modules/@expert/voice/PROVIDERS.md`) and is in the
 [voice repo](https://github.com/OrchestraAssistant/voice/blob/main/PROVIDERS.md).
 

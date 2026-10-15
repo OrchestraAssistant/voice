@@ -1,7 +1,7 @@
 {
   "name": "@expert/voice-server",
   "version": "0.1.5",
-  "description": "Server-half handlers for @expert/voice providers: the OpenAI Realtime relay and the JEV cascade broker, as mountable Web (Request)=>Response handlers.",
+  "description": "Server-half handlers for @expert/voice providers: the OpenAI Realtime relay, as a mountable Web (Request)=>Response handlers.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -11,14 +11,13 @@
   "type": "module",
   "exports": {
     "./openai": "./dist/openai.js",
-    "./jev": "./dist/jev.js",
     "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "esbuild src/openai.js src/jev.js --bundle --platform=node --format=esm --outdir=dist --packages=external",
+    "build": "esbuild src/openai.js --bundle --platform=node --format=esm --outdir=dist --packages=external",
     "prepack": "npm run build",
     "test": "node --test test/*.test.mjs"
   },

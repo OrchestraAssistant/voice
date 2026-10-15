@@ -36,8 +36,8 @@ packages/voice-cli/    THE TOOLING. Babel extractor: app source → manifest.jso
                        Ships to devs as @expert/voice-cli.
 
 packages/voice-server/ THE SERVER HALVES. Mountable Web handlers that hold the
-                       keys (the OpenAI relay, the JEV broker). Ships to devs
-                       as @expert/voice-server.
+                       keys (the OpenAI relay). Ships to devs as
+                       @expert/voice-server.
 ```
 
 Two more pieces are part of the product but live outside this repo and ship to
@@ -216,54 +216,36 @@ openaiVoiceHandler({
 });
 ```
 
-```ts
-// JEV cascade (browser STT + JEV + a text model) — app/voice/[...path]/route.ts
-import { jevBrokerHandler, openaiText } from "@expert/voice-server/jev";
-export const POST = jevBrokerHandler({ generate: openaiText() }); // JEV_API_KEY + OPENAI_API_KEY
-// client (install @huggingface/transformers; moonshineStt REQUIRES loadTransformers):
-//   const stt = moonshineStt({ loadTransformers: () => import("@huggingface/transformers"), size: "base" });
-//   provider={moonshineJev({ stt, ...jevBroker("") })}
-```
-
-Both expose `toExpressHandler` for non-Web backends (`app.use("/voice",
+It also exposes `toExpressHandler` for non-Web backends (`app.use("/voice",
 express.json(), toExpressHandler(handler))`). For a single app this beats a
 standalone service — same origin, your own auth gating the route, one deploy. The
 standalone relay stays the reference + the multi-tenant option (one service for
-many apps), where its origin / secret / rate-limit guards earn their keep. Full
-contract and the three server shapes (mint vs per-turn proxy vs long-lived) are
-in PROVIDERS.md.
+many apps), where its origin / secret / rate-limit guards earn their keep. The full
+provider contract is in PROVIDERS.md.
 
 ### Swap the engine, or offer several
 
-OpenAI Realtime is the default, but the voice-to-action pipeline is a swappable
-**provider** (`{ id, capabilities, connect }` — see PROVIDERS.md). Pass one with
-`provider=`, or pass a list the user can pick from in Settings, exactly like the
-model picker but one level up:
+OpenAI Realtime is the default. The realtime voice API sits behind a
+**provider** contract (`{ id, capabilities, connect }` — see PROVIDERS.md), so
+another realtime API can plug in. Pass one with `provider=`, or pass a list the
+user can pick from in Settings, exactly like the model picker but one level up:
 
 ```jsx
-import { VoiceProvider, openaiRealtime, moonshineJev, moonshineStt, jevBroker } from "@expert/voice";
-
-// Moonshine's speech model runs in the browser via transformers.js — a heavy
-// optional dep the core does NOT bundle, so install @huggingface/transformers and
-// pass it. Without loadTransformers the widget errors ("moonshineStt needs …").
-const moonshine = moonshineJev({
-  stt: moonshineStt({ loadTransformers: () => import("@huggingface/transformers"), size: "base" }),
-  ...jevBroker(""), // the broker route above supplies evaluate + generateText
-});
+import { VoiceProvider, openaiRealtime } from "@expert/voice";
 
 <VoiceProvider
   manifest={manifest}
   providers={[
-    { label: "OpenAI Realtime",       provider: openaiRealtime({ relayUrl }) },
-    { label: "On-device (Moonshine)", provider: moonshine },
+    { label: "OpenAI Realtime", provider: openaiRealtime({ relayUrl }) },
+    { label: "Other realtime",  provider: myRealtime() }, // see PROVIDERS.md
   ]}
 >
   <Interpreter />
 </VoiceProvider>
 ```
 
-The app offers only the engines it has wired (each needs its own server half — a
-relay, a JEV/STT broker); the user chooses among them. Switching is a reconnect
+The app offers only the engines it has wired (each needs its own server half,
+usually a token mint); the user chooses among them. Switching is a reconnect
 (an engine is a whole pipeline, not a parameter), the credential is dropped, and
 the controls follow the engine's `capabilities` — an engine that can't
 push-to-talk simply won't show the button. To see it with no keys, run the dev

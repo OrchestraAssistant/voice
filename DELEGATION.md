@@ -301,8 +301,7 @@ because the app's own code did it.
   wraps it; the provider only ever proposes it. Nothing about delegation lives in
   a provider.
 - **Providers are unchanged.** `ask_<id>` is one more tool in the catalog; a
-  realtime model calls it by judgement, a JEV cascade adds "is this for the deck
-  agent?" as one more intent branch. See PROVIDERS.md.
+  realtime model calls it by judgement. See PROVIDERS.md.
 - **The manifest stays the single source.** Agents are generated/declared the same
   way operations are, refined by the same judgement pass, and projected to the
   neutral tool catalog like everything else.
@@ -316,6 +315,5 @@ because the app's own code did it.
   `settles`), and reads the reply back. Driven in a real browser by
   `test/dom.test.mjs`.
 - **Next:** the `api` transport + the `onDelegate` reflect hook; `requiresConfirmation`
-  gating for a delegated turn; wiring the JEV cascade to route to `ask` (the realtime
-  path has it today); and router-quality work (reading the transcript to route
+  gating for a delegated turn; and router-quality work (reading the transcript to route
   follow-ups, richer "what this agent can't do" descriptions).
