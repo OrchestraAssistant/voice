@@ -1,4 +1,4 @@
-# voice-mvp
+# voice
 
 Voice control for React apps. Static analysis turns an app into a manifest of
 what it can do; a relay mints realtime-voice sessions with that manifest as
@@ -47,19 +47,20 @@ DESIGN-CHOICES §1.
 
 ## Installing it in your app
 
-Not on npm yet, and `npm install github:OrchestraAssistant/voice-mvp` won't work
+Not on npm yet, and `npm install github:OrchestraAssistant/voice` won't work
 — this is a workspace monorepo, so that grabs the private root, not the packages.
-Install the two **tarballs** instead. They're pre-built (`dist` is bundled), so
-the host needs no build step and no Tailwind:
+Install the **tarballs** from a release instead. They're pre-built (`dist` is
+bundled), so the host needs no build step and no Tailwind:
 
 ```bash
-# from a GitHub Release (shareable, no clone):
-npm install \
-  https://github.com/OrchestraAssistant/voice-mvp/releases/download/v0.1.4/expert-voice-0.1.4.tgz \
-  https://github.com/OrchestraAssistant/voice-mvp/releases/download/v0.1.4/expert-voice-cli-0.1.4.tgz
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4
+npm install    $REL/expert-voice-0.1.4.tgz          # the widget
+npm install -D $REL/expert-voice-cli-0.1.4.tgz      # the manifest generator
+npm install    $REL/expert-voice-server-0.1.4.tgz   # the backend route (see below)
 
 # or from local tarballs, built in this repo with `npm run pack:all`:
-npm install ./expert-voice-0.1.4.tgz ./expert-voice-cli-0.1.4.tgz
+npm install ./pkg/expert-voice-0.1.4.tgz ./pkg/expert-voice-server-0.1.4.tgz
+npm install -D ./pkg/expert-voice-cli-0.1.4.tgz
 ```
 
 Then generate a manifest from your source:
@@ -68,9 +69,9 @@ Then generate a manifest from your source:
 npx voice-cli src .voice     # your source dir -> .voice/manifest.json
 ```
 
-Maintainers: `npm run pack:all` writes both tarballs to `pkg/` (`@expert/voice`
-builds its `dist` on pack). Attach those two files to a GitHub Release named
-`v0.1.4` and the URL install above works for anyone.
+Maintainers: `npm run pack:all` writes all three tarballs to `pkg/` (each
+package builds its `dist` on pack). Attach them to a GitHub Release named after
+the version and the URL install above works for anyone.
 
 Mount it once, wherever your other providers live. It is a leaf, not a
 wrapper -- nothing of yours needs to be inside the provider, because the only
@@ -169,7 +170,7 @@ the same for every engine: set the keys in env → mount the provider's handler 
 `/voice` → point the client at `/voice`.**
 
 ```bash
-npm install @expert/voice-server   # or the v0.1.4 tarball URL, like the others
+npm install https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4/expert-voice-server-0.1.4.tgz
 ```
 
 ```ts

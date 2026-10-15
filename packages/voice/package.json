@@ -5,7 +5,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OrchestraAssistant/voice-mvp.git",
+    "url": "git+https://github.com/OrchestraAssistant/voice.git",
     "directory": "packages/voice"
   },
   "type": "module",

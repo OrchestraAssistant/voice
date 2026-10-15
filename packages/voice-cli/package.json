@@ -4,7 +4,7 @@
   "description": "Static-analysis extractor: turns a React app's source into .voice/manifest.json",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OrchestraAssistant/voice-mvp.git",
+    "url": "git+https://github.com/OrchestraAssistant/voice.git",
     "directory": "packages/voice-cli"
   },
   "type": "module",
