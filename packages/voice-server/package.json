@@ -1,6 +1,6 @@
 {
   "name": "@expert/voice-server",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Server-half handlers for @expert/voice providers: the OpenAI Realtime relay and the JEV cascade broker, as mountable Web (Request)=>Response handlers.",
   "license": "MIT",
   "repository": {

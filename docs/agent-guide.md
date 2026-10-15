@@ -18,10 +18,10 @@ run in the app's repo.
 Skip this step if `node_modules/@expert/voice-cli` already exists.
 
 ```
-REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4
-npm install    $REL/expert-voice-0.1.4.tgz          # the widget (runtime)
-npm install -D $REL/expert-voice-cli-0.1.4.tgz      # the CLI (build-time tooling)
-npm install    $REL/expert-voice-server-0.1.4.tgz   # the backend route (runtime)
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5
+npm install    $REL/expert-voice-0.1.5.tgz          # the widget (runtime)
+npm install -D $REL/expert-voice-cli-0.1.5.tgz      # the CLI (build-time tooling)
+npm install    $REL/expert-voice-server-0.1.5.tgz   # the backend route (runtime)
 ```
 
 If the frontend and backend are separate packages, the widget goes in the
@@ -35,8 +35,8 @@ The **`expert-voice`** skill IS the detailed workflow. Read it and follow it
 NOW — do not wait for skill discovery or a restart:
 
 ```
-cat node_modules/@expert/voice-cli/skills/expert-voice/SKILL.md   # the full procedure, matching the installed version
-# optional, for future sessions:  npx voice-cli skill   (installs it into .claude/skills)
+npx voice-skill --print      # prints the full procedure, matching the installed version
+# optional, for future sessions:  npx voice-skill   (installs it into .claude/skills)
 ```
 
 The skill's stage 0 (install) is already done by step 1 above; start at stage 1.
@@ -62,6 +62,15 @@ Add `npx voice-cli src .voice --check` to the app's CI: it exits non-zero when
 the committed manifest no longer matches the code.
 
 ## 3. Wire the widget
+
+**First ask the developer** whether they want the standalone widget (one line,
+works today, the fastest way to try it) or a custom UI that matches the app's
+design or a UX constraint (a command bar the app already has, no floating
+button, and so on). Do not choose for them. The skill's "Ask the developer"
+section has the wording and, for the custom path, what a custom UI must still
+provide: a listening indicator, confirmations, start/stop, errors. The
+provider, the manifest and the route below are the same either way. What
+follows is the standalone path.
 
 Mount the provider once, inside the app's router, pass it the generated
 manifest, and give it a navigate function. Leave `relayUrl` unset (it defaults

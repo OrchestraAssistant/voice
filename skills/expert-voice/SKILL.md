@@ -31,10 +31,10 @@ there, skip to stage 1. If not, install from the GitHub release (the packages
 are not on npm yet, so `npx` alone will NOT find them):
 
 ```
-REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4
-npm install    $REL/expert-voice-0.1.4.tgz          # the widget (runtime)
-npm install -D $REL/expert-voice-cli-0.1.4.tgz      # this CLI (build-time tooling)
-npm install    $REL/expert-voice-server-0.1.4.tgz   # the backend route (runtime)
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5
+npm install    $REL/expert-voice-0.1.5.tgz          # the widget (runtime)
+npm install -D $REL/expert-voice-cli-0.1.5.tgz      # this CLI (build-time tooling)
+npm install    $REL/expert-voice-server-0.1.5.tgz   # the backend route (runtime)
 ```
 
 Use the app's package manager (`yarn add <url>`, `pnpm add <url>`). If the
@@ -42,6 +42,60 @@ frontend and backend are separate packages, the widget goes in the frontend and
 the server package in the backend. Wiring the widget and mounting the `/voice`
 route are in the agent guide:
 https://github.com/OrchestraAssistant/voice/blob/main/docs/agent-guide.md
+
+## Ask the developer: the standalone widget, or a UI of the app's own?
+
+On a first integration, before you wire anything, ASK the developer which they
+want. Do not pick for them. The decision is about the app's look and UX, which
+is theirs. Put it to them like this:
+
+- **A. Standalone widget (`<Interpreter/>`)** — one line. A floating voice
+  button with a panel, plus a glow around the screen edge while it listens or
+  works. It renders in its own shadow root, so the app's CSS cannot break it.
+  It is the fastest way to try voice on the app today.
+- **B. Custom implementation** — a UI built on `useInterpreter()` that matches
+  the app's design system, or fits a UX constraint: a command bar or assistant
+  panel the app already has, no floating button allowed, a mobile layout with
+  no room, brand or accessibility rules. It costs more work: the developer's
+  components, which you write with them.
+
+Recommend A to try it out, unless the developer already named a constraint.
+Switching later is cheap: the manifest, the overlay and the `/voice` route are
+identical for both, and so is everything below. If you cannot ask (a
+non-interactive run), go with A and say that you chose it.
+
+There is a middle path: `<InterpreterBubble/>` and `<ListeningGlow/>` placed by
+the app. If the developer takes it, render BOTH. A bubble with no glow is not an
+error and nothing warns about it. The app just loses its listening indicator.
+
+**If they choose B**, the custom components must sit INSIDE `<VoiceProvider>`
+(with A, the provider can be a leaf). `useInterpreter()` exposes everything the
+built-in UI uses; the built-in UI has no privileged access. A custom UI must
+still provide:
+
+1. **A visible listening indicator whenever the microphone is live.** This is
+   for privacy, so it is not optional. Use `isListening({ transport, micAttached, mode, holding })`
+   from `@expert/voice`, or `rimState(...)` (adds `agentBusy` and
+   `userSpeaking`; returns `"listening"`, `"working"`, `"ready"` or `null`) to
+   show more states. Keeping `<ListeningGlow/>` alone is the simplest option.
+2. **Confirmations.** When a write needs confirming, `pendingAction` is
+   `{ name, description, args, count }`. Show it with confirm/cancel buttons
+   wired to `confirmManually()` / `cancelManually()`. Without them the user can
+   only confirm by voice, with nothing on screen to read.
+3. **Start/stop**: `start()`, `stop()`, and `transport` for the connection
+   state. If `mode` is `"ptt"` (push-to-talk), call `holdStart()` / `holdEnd()`
+   on press and release.
+4. **Errors**: show `error`. A missing `/voice` route or key surfaces there, and
+   a UI that hides it fails silently.
+5. Hide the controls the live engine lacks: `capabilities.pushToTalk`,
+   `.textInput` (gates `sendText`), `.bargeIn`, `.warm`.
+
+Optional: `transcript` (`[{ role, text }]`), `sendText(text)`, an engine picker
+(`providers`, `providerId`, `setProvider`), and `setMode`. The built-in UI is the reference
+implementation:
+https://github.com/OrchestraAssistant/voice/blob/main/packages/voice/src/InterpreterBubble.jsx
+(the package ships only a bundle). Build it from the app's own components and
+styles.
 
 ## 1. Generate
 

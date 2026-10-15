@@ -58,14 +58,14 @@ Install the **tarballs** from a release instead. They're pre-built (`dist` is
 bundled), so the host needs no build step and no Tailwind:
 
 ```bash
-REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4
-npm install    $REL/expert-voice-0.1.4.tgz          # the widget
-npm install -D $REL/expert-voice-cli-0.1.4.tgz      # the manifest generator
-npm install    $REL/expert-voice-server-0.1.4.tgz   # the backend route (see below)
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5
+npm install    $REL/expert-voice-0.1.5.tgz          # the widget
+npm install -D $REL/expert-voice-cli-0.1.5.tgz      # the manifest generator
+npm install    $REL/expert-voice-server-0.1.5.tgz   # the backend route (see below)
 
 # or from local tarballs, built in this repo with `npm run pack:all`:
-npm install ./pkg/expert-voice-0.1.4.tgz ./pkg/expert-voice-server-0.1.4.tgz
-npm install -D ./pkg/expert-voice-cli-0.1.4.tgz
+npm install ./pkg/expert-voice-0.1.5.tgz ./pkg/expert-voice-server-0.1.5.tgz
+npm install -D ./pkg/expert-voice-cli-0.1.5.tgz
 ```
 
 Then generate a manifest from your source:
@@ -84,7 +84,7 @@ widget → backend route. The detailed manifest workflow is the `expert-voice`
 skill, which also installs the packages if they are missing:
 
 ```bash
-npx voice-cli skill                                          # Claude Code: copies it into .claude/skills
+npx voice-skill                                              # Claude Code: copies it into .claude/skills
 npx skills add OrchestraAssistant/voice --skill expert-voice   # other agents
 ```
 
@@ -189,7 +189,7 @@ the same for every engine: set the keys in env → mount the provider's handler 
 `/voice` → point the client at `/voice`.**
 
 ```bash
-npm install https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4/expert-voice-server-0.1.4.tgz
+npm install https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5/expert-voice-server-0.1.5.tgz
 ```
 
 ```ts

@@ -217,9 +217,11 @@ It deliberately does **not** import react-router or react-query — a host
 using neither still works.
 
 **`useInterpreter()`** — the headless API; the built-in UI has no privileged
-access. Returns `status`, `transcript`, `pendingAction`, `error`, `manifest`,
-`mode`, `holding`, and `start`, `stop`, `sendText`, `setMode`, `holdStart`,
-`holdEnd`, `confirmManually`, `cancelManually`.
+access. Returns `transport`, `micAttached`, `userSpeaking`, `agentBusy`,
+`transcript`, `pendingAction` (`{name, description, args, count}`), `error`,
+`manifest`, `mode`, `holding`, `capabilities`, `providers`/`providerId`, and
+`start`, `stop`, `sendText`, `setMode`, `setProvider`, `holdStart`, `holdEnd`,
+`confirmManually`, `cancelManually`.
 
 **Components** — `<InterpreterBubble>` (default drop-in: icon pill expanding
 into a tabbed panel), `<InterpreterPanel>` (flat panel, unpositioned),
