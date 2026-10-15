@@ -12,6 +12,11 @@ first, DOM fallback second, with a confirmation gate on destructive actions.
 | this file | orientation, running it, gotchas |
 | [SPEC.md](SPEC.md) | what the system is and how the parts fit |
 | [DESIGN-CHOICES.md](DESIGN-CHOICES.md) | decisions, alternatives rejected, revisit conditions |
+| [PROVIDERS.md](PROVIDERS.md) | the voice-engine contract: built-in providers, writing your own |
+| [DELEGATION.md](DELEGATION.md) | handing voice requests to an agent already in the app |
+| [docs/agent-guide.md](docs/agent-guide.md) | hand this to a coding agent to integrate an app end to end |
+| [docs/browser-setup.md](docs/browser-setup.md) | giving `voice-probe --browser` a browser |
+| [skills/expert-voice](skills/expert-voice/SKILL.md) | the agent skill: generate, probe, judgement pass |
 
 ---
 
@@ -67,6 +72,16 @@ Then generate a manifest from your source:
 
 ```bash
 npx voice-cli src .voice     # your source dir -> .voice/manifest.json
+```
+
+**Or let your coding agent do the integration.** Point it at
+[docs/agent-guide.md](docs/agent-guide.md), which walks install → manifest →
+widget → backend route. The detailed manifest workflow is the `expert-voice`
+skill:
+
+```bash
+npx voice-skill                                              # Claude Code: copies it into .claude/skills
+npx skills add OrchestraAssistant/voice --skill expert-voice   # other agents
 ```
 
 Maintainers: `npm run pack:all` writes all three tarballs to `pkg/` (each

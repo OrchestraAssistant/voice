@@ -40,7 +40,7 @@ export function installSkill(argv = []) {
   fs.writeFileSync(dest, body);
   console.log(`Installed the ${SKILL_NAME} skill -> ${rel}`);
   console.log(`  Claude Code discovers it automatically. It walks generate -> probe -> the judgement pass.`);
-  console.log(`  For other agents, install with: npx skills add <this repo> --skill ${SKILL_NAME}`);
+  console.log(`  For other agents, install with: npx skills add OrchestraAssistant/voice --skill ${SKILL_NAME}`);
 }
 
 // Runnable directly as a bin; also dispatched from generate.js's `skill` subcommand.
