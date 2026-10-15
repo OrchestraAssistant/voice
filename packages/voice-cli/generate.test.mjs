@@ -74,7 +74,7 @@ describe("running it the way a consumer would", () => {
   test("--help explains itself without needing an app at all", () => {
     const { code, out } = run(app(), ["--help"]);
     assert.equal(code, 0);
-    assert.match(out, /npx @expert\/voice-cli/);
+    assert.match(out, /npx voice-cli/);
   });
 });
 
