@@ -1,0 +1,4 @@
+# never ship these to consumers
+test/
+**/*.test.mjs
+*.log

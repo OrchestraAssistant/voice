@@ -1,0 +1,215 @@
+{
+  "version": 1,
+  "contractHash": "0b734d4fd36383bd",
+  "generatedAt": "static-analysis",
+  "generatedBy": [
+    "react-router",
+    "react-router-config",
+    "tanstack-router",
+    "tanstack-server-routes",
+    "request-hooks",
+    "axios-services",
+    "openapi-spec",
+    "graphql-operations",
+    "zod-bodies",
+    "valibot-bodies",
+    "yup-bodies",
+    "arktype-bodies",
+    "typescript-types",
+    "unresolved-bodies",
+    "app-meta",
+    "page-metadata",
+    "call-sites",
+    "hand-corrections",
+    "infrastructure",
+    "confidence",
+    "grouping"
+  ],
+  "routes": [
+    {
+      "path": "/",
+      "component": "Dashboard"
+    },
+    {
+      "path": "/tasks/new",
+      "component": "NewTask"
+    },
+    {
+      "path": "/tasks/:id",
+      "component": "TaskDetail"
+    },
+    {
+      "path": "/settings",
+      "component": "Settings"
+    }
+  ],
+  "queries": [
+    {
+      "name": "tasks",
+      "description": "List tasks, optionally filtered by a search string",
+      "method": "GET",
+      "endpoint": "/api/tasks",
+      "params": [
+        {
+          "name": "search",
+          "type": "string",
+          "required": false,
+          "source": "query-string"
+        }
+      ],
+      "callSites": 3,
+      "returns": {
+        "kind": "array",
+        "of": [
+          "id",
+          "title",
+          "done",
+          "dueDate",
+          "notes"
+        ]
+      }
+    },
+    {
+      "name": "task",
+      "description": "Get a single task by id",
+      "method": "GET",
+      "endpoint": "/api/tasks/{id}",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "source": "url"
+        }
+      ],
+      "callSites": 3
+    },
+    {
+      "name": "settings",
+      "description": "Read the user's settings: display name, email, theme",
+      "method": "GET",
+      "endpoint": "/api/settings",
+      "params": [],
+      "callSites": 2,
+      "returns": {
+        "kind": "object",
+        "fields": [
+          "name",
+          "email",
+          "theme"
+        ]
+      }
+    }
+  ],
+  "actions": [
+    {
+      "name": "createTask",
+      "description": "Create a new task",
+      "method": "POST",
+      "endpoint": "/api/tasks",
+      "params": [],
+      "requiresConfirmation": false,
+      "bodyFields": [
+        {
+          "name": "title",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "dueDate",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "name": "notes",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "callSites": 3
+    },
+    {
+      "name": "updateTask",
+      "description": "Update fields on an existing task, such as marking it done/not done or changing its title",
+      "method": "PUT",
+      "endpoint": "/api/tasks/{id}",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "source": "url"
+        }
+      ],
+      "requiresConfirmation": false,
+      "bodyFields": [
+        {
+          "name": "done",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "name": "title",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "review": [
+        {
+          "field": null,
+          "kind": "unknown",
+          "reason": "no schema found beside the write hook `useUpdateTask` -- read the form that calls it"
+        }
+      ],
+      "callSites": 3,
+      "confidence": "unknown"
+    },
+    {
+      "name": "deleteTask",
+      "description": "Permanently delete a task",
+      "method": "DELETE",
+      "endpoint": "/api/tasks/{id}",
+      "params": [
+        {
+          "name": "id",
+          "type": "string",
+          "required": true,
+          "source": "url"
+        }
+      ],
+      "requiresConfirmation": true,
+      "bodyFields": [],
+      "callSites": 3
+    },
+    {
+      "name": "updateSettings",
+      "description": "Change the user's settings: display name, email, or theme",
+      "method": "PUT",
+      "endpoint": "/api/settings",
+      "params": [],
+      "requiresConfirmation": false,
+      "bodyFields": [
+        {
+          "name": "name",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "email",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "name": "theme",
+          "required": true,
+          "type": "enum",
+          "enumValues": [
+            "light",
+            "dark"
+          ]
+        }
+      ],
+      "callSites": 2
+    }
+  ]
+}

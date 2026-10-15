@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bubble — clean-host harness</title>
+    <style>
+      /* The host's own utility CSS, declared first and IN A LAYER, which is
+         what a Tailwind v4 app emits. The layer matters: unlayered rules beat
+         layered ones outright, so an unlayered host would win by accident and
+         prove nothing. Layered against layered, source order decides, and the
+         widget's sheet would arrive later. */
+      @layer theme, base, components, utilities;
+      @layer utilities {
+        .hidden { display: none; }
+        /* Deliberately NOT named `md:flex`. Our own Tailwind scans this
+           directory, so a real utility name here gets generated into the
+           widget's sheet as well -- which silently repairs the collision the
+           test exists to detect. This name only the host has. */
+        @media (min-width: 48rem) { .host-wide-flex { display: flex; } }
+      }
+    </style>
+    <style>
+      /* Deliberately almost nothing. The point of this page is the opposite
+         of stress.html: a host with NO opinions, so what you see is the
+         widget's own stylesheet and nothing else. That makes it a faithful
+         stand-in for the shadow-root render while still being reachable by
+         a selector, which a closed shadow root is not.
+
+         Every rule here is scoped to .page for that reason. An unscoped
+         `p {}` is enough to break the illusion: at mount="inline" it
+         outranks a layered Tailwind utility, so the panel's own
+         `text-destructive` came out host-grey -- a true finding about
+         inline mounting (DESIGN-CHOICES §1) but noise from THIS page,
+         whose job is to have no opinions. stress.html is where host rules
+         are supposed to fight us. */
+      body { margin: 0; font: 15px/1.5 system-ui, sans-serif; color: #333; background: #fbfbfd; }
+      .page { padding: 24px 28px; max-width: 60ch; }
+      .page h1 { font-size: 20px; margin: 0 0 8px; }
+      .page p { color: #6b6b76; margin: 0 0 12px; }
+      .page code { background: #ecedf1; padding: 1px 5px; border-radius: 4px; }
+
+      /* ?bg=dark. The widget is a light-themed panel, so a dark page is how
+         you tell a real surface from one that only looked white because the
+         host behind it was: every token being inert renders as transparent,
+         which is invisible on a white page and unmissable here. */
+      body.dark { background: #101014; color: #e8e8ee; }
+      body.dark .page p { color: #b9b9c9; }
+      body.dark .page code { background: #26263a; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>Bubble harness</h1>
+      <p>
+        A host page with no styles of its own, so the widget renders exactly as it
+        does inside the shadow root. Defaults to <code>mount="inline"</code> so the
+        panel can be driven by a selector; add <code>?mount=shadow</code> for the
+        real overlay path, <code>?bg=dark</code> to catch a surface that is
+        actually transparent, <code>?glow=1</code> to put the listening rim in
+        the overlay alongside it, and <code>?trace=1</code> to record the
+        resize and the top-layer churn below. Drive the panel with
+        <kbd>1</kbd> and <kbd>2</kbd>. <code>/voice</code> is proxied to the relay on
+        <code>localhost:3002</code>; override with <code>?relay=</code>.
+      </p>
+    </div>
+    <!-- A host with its own utility CSS, which is the shape of every Tailwind
+         app. Reduced from a real failure: in cal.diy the widget's stylesheet
+         landed in the host document, and its bare `.hidden` came after the
+         host's `.md:flex` in the same layer, so the desktop sidebar stayed
+         hidden at every width and the app fell back to its mobile bar. Media
+         queries carry no specificity, so within one layer the last rule wins. -->
+    <aside id="host-sidebar" class="hidden host-wide-flex">host sidebar</aside>
+
+    <!-- A rich-text editor with its name in a heading above it, which is how
+         most apps render a description. Reduced from cal.diy: the agent was
+         asked to fill one in, could not see it, and typed into the URL field
+         instead. -->
+    <section id="host-form">
+      <div>Description</div>
+      <div id="host-editor" contenteditable="true" role="textbox"></div>
+      <label for="host-title">Title</label>
+      <input id="host-title" type="text" />
+
+      <!-- A field that does not exist until something is clicked, which is
+           what a dialog is. Without waiting, every flow whose first step opens
+           something fails on its second. -->
+      <button id="host-open">Add detail</button>
+      <div id="host-later" hidden>
+        <label for="host-notes">Notes</label>
+        <input id="host-notes" type="text" />
+      </div>
+      <!-- Two buttons with the SAME label and different test ids, which is the
+           shape that sent a flow into the wrong dialog in cal.diy: it labels
+           the button opening a new schedule "New" and the one opening a new
+           event type "New", and tells them apart only by data-testid. -->
+      <button data-testid="new-schedule">New</button>
+      <button data-testid="new-event-type">New</button>
+      <div id="host-schedule-panel" hidden>
+        <label for="host-schedule-name">Name</label>
+        <input id="host-schedule-name" type="text" />
+      </div>
+      <div id="host-event-panel" hidden>
+        <label for="host-event-title">Event title</label>
+        <input id="host-event-title" type="text" />
+      </div>
+      <script>
+        document.getElementById("host-open").addEventListener("click", () => {
+          setTimeout(() => document.getElementById("host-later").removeAttribute("hidden"), 250);
+        });
+        const reveal = (testId, panel) =>
+          document.querySelector(`[data-testid="${testId}"]`).addEventListener("click", () => {
+            document.getElementById(panel).removeAttribute("hidden");
+          });
+        reveal("new-schedule", "host-schedule-panel");
+        reveal("new-event-type", "host-event-panel");
+      </script>
+    </section>
+
+    <div id="widget-mount"></div>
+    <pre id="toggles" style="font: 11px/1.35 ui-monospace, monospace; padding: 4px 28px"></pre>
+    <pre id="trace" style="font: 11px/1.35 ui-monospace, monospace; padding: 0 28px"></pre>
+    <script type="module" src="./bubble-main.jsx"></script>
+  </body>
+</html>

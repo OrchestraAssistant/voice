@@ -1,0 +1,55 @@
+{
+  "name": "@expert/voice",
+  "version": "0.1.4",
+  "description": "Voice control for React apps: realtime agent, manifest-driven actions, DOM fallback.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OrchestraAssistant/voice-mvp.git",
+    "directory": "packages/voice"
+  },
+  "type": "module",
+  "main": "./dist/voice.js",
+  "module": "./dist/voice.js",
+  "exports": {
+    ".": {
+      "import": "./dist/voice.js",
+      "default": "./dist/voice.js"
+    },
+    "./package.json": "./package.json",
+    "./inline.css": "./dist/voice.css"
+  },
+  "files": [
+    "dist",
+    "PROVIDERS.md"
+  ],
+  "sideEffects": [
+    "*.css"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "prepack": "npm run build && node -e \"require('fs').copyFileSync('../../PROVIDERS.md','PROVIDERS.md')\"",
+    "dev": "vite build --watch",
+    "stress": "vite --config vite.dev.config.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "framer-motion": "^12.34.2",
+    "lucide-react": "^1.39.0",
+    "react-use-measure": "^2.1.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^5.1.4",
+    "clsx": "^2.1.1",
+    "playwright": "^1.62.1",
+    "postcss": "^8.5.26",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.2.2"
+  }
+}

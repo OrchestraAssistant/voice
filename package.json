@@ -1,0 +1,14 @@
+{
+  "name": "voice",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build:pkg": "npm run build -w @expert/voice",
+    "dev:stress": "npm run stress -w @expert/voice",
+    "pack:all": "rm -rf pkg && mkdir -p pkg && npm pack --pack-destination pkg -w @expert/voice -w @expert/voice-cli -w @expert/voice-server",
+    "test": "npm run build:pkg && npm test -w @expert/voice-cli && npm test -w @expert/voice && npm test -w @expert/voice-server"
+  }
+}

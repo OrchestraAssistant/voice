@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hostile host - overlay stress test</title>
+    <style>
+      /* ------------------------------------------------------------------
+         This page stands in for "the app that is served, which we of course
+         don't know". None of it is our code: the widget gets dropped into
+         it and has to draw over it anyway. Everything here is something a
+         real app does, turned up loud.
+         ------------------------------------------------------------------ */
+
+      :root { font: 15px/1.5 system-ui, sans-serif; }
+      body { margin: 0; background: #101014; color: #e8e8ee; }
+
+      /* SABOTAGE 1 -- a global reset with !important, the kind that ships in
+         plenty of legacy CSS. It matches our overlay's host <div> too. Only
+         inline !important outranks it. */
+      body div {
+        position: static !important;
+        z-index: 0 !important;
+      }
+
+      /* SABOTAGE 2 -- host chrome sitting at the very top of the z range.
+         A z-index war is unwinnable: this ties with any number we pick and
+         wins on document order. The overlay has to not be playing that game. */
+      header.host-bar {
+        position: fixed;
+        inset: 0 0 auto 0;
+        z-index: 2147483647;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 10px 14px;
+        background: #2b2b3a;
+        border-bottom: 1px solid #44445a;
+      }
+
+      /* SABOTAGE 3 -- the widget's mount point is buried inside an ancestor
+         with a transform AND paint containment. Both re-root `position:
+         fixed` onto this section, so anything fixed inside it is measured
+         against this box, not the viewport. This is the one that silently
+         breaks overlays. */
+      section.transformed {
+        transform: translateZ(0) scale(1);
+        contain: paint;
+        filter: saturate(1);
+        will-change: transform;
+        margin: 120px 40px 40px;
+        padding: 20px;
+        border: 1px dashed #55556a;
+        border-radius: 8px;
+      }
+
+      /* Content that reaches the viewport edge on every side, so there is no
+         empty margin for the rim to hide in and nothing to "look" transparent
+         by accident. */
+      .edge { position: fixed; background: #1d6fa5; color: #fff; padding: 8px 12px; z-index: 500; }
+      /* <aside>, not <div>, purely so SABOTAGE 1 above doesn't knock the host's
+         own decorations flat -- that rule is aimed at the overlay's <div>. */
+      .edge.left { left: 0; top: 45%; }
+      .edge.right { right: 0; top: 45%; }
+      .edge.bottom { left: 50%; bottom: 0; transform: translateX(-50%); }
+
+      button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #55556a; background: #3a3a4d; color: #e8e8ee; cursor: pointer; }
+      button:hover { background: #4a4a60; }
+      /* Full-bleed on purpose: a modal that stops short of the edges would
+         never overlap the rim band, and the top-layer question would go
+         untested. This one covers every pixel the rim draws on. */
+      dialog {
+        background: #2b2b3a; color: #e8e8ee; border: 1px solid #55556a; padding: 24px;
+        width: 100vw; max-width: 100vw; height: 100vh; max-height: 100vh; inset: 0;
+      }
+      /* Full-bleed for the same reason as the dialog: the native-popover
+         path re-raises off the `toggle` event rather than the `open`
+         attribute, so it needs to be exercised over the rim band too. */
+      [popover] {
+        background: #2b2b3a; color: #e8e8ee; border: 1px solid #55556a; padding: 24px;
+        width: 100vw; max-width: 100vw; height: 100vh; max-height: 100vh; inset: 0;
+      }
+      p { max-width: 60ch; color: #b9b9c9; }
+      code { background: #26263a; padding: 1px 5px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <header class="host-bar">
+      <strong>Host app chrome</strong>
+      <span>z-index: 2147483647</span>
+    </header>
+
+    <!-- Clickable target parked under the rim, top-left corner: proves the
+         overlay doesn't eat pointer events from the app underneath it. -->
+    <button id="corner-btn" style="position: fixed; left: 6px; bottom: 6px; z-index: 600">
+      corner clicks: <span id="corner-count">0</span>
+    </button>
+
+    <aside class="edge left">left edge</aside>
+    <aside class="edge right">right edge</aside>
+    <aside class="edge bottom">bottom edge</aside>
+
+    <section class="transformed">
+      <h1>An app we didn't write</h1>
+      <p>
+        The widget's mount point is the box below, nested inside an ancestor with
+        <code>transform</code> + <code>contain: paint</code>, under a global
+        <code>body div { position: static !important; z-index: 0 !important }</code>
+        reset, on a page whose own chrome already claims the top of the z-index range.
+      </p>
+      <!-- The widget mounts HERE, in the worst possible place. -->
+      <div id="widget-mount"></div>
+    </section>
+
+    <dialog id="host-dialog">
+      <h2>Host modal</h2>
+      <p>Opened with <code>showModal()</code>, so it's in the browser's top layer — the one place a z-index can't reach.</p>
+      <button onclick="document.getElementById('host-dialog').close()">Close</button>
+    </dialog>
+
+    <div id="host-popover" popover="auto">
+      <h2>Host popover</h2>
+      <p>A native <code>popover</code>, also in the top layer.</p>
+    </div>
+
+    <script>
+      const count = document.getElementById("corner-count");
+      document.getElementById("corner-btn").addEventListener("click", () => {
+        count.textContent = String(Number(count.textContent) + 1);
+      });
+    </script>
+    <script type="module" src="./stress-main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,324 @@
+/*
+ * Shipped stylesheet for @expert/voice. A host app imports this once:
+ *
+ *   import "@expert/voice/styles.css";
+ *
+ * Self-contained on purpose. It cannot assume the host defines anything --
+ * no --accent/--border tokens, no `button {}` base rule, no box-sizing
+ * reset -- so every value the widget needs is declared here, and the
+ * variables are scoped to the widget's own roots rather than :root so we
+ * don't overwrite a host's tokens of the same name.
+ *
+ * NOT yet solved here: class-name collision. These names are still
+ * generic enough that a host's own `.transcript` or `.mic-button` could
+ * fight ours, in either direction. The rim already sidesteps this
+ * completely by living in a closed shadow root (see ScreenOverlay.jsx);
+ * the panel/bubble should follow it there, at which point this file gets
+ * injected into that shadow root instead of the host's document and the
+ * whole problem disappears.
+ */
+
+/* ---------------------------------------------------------------------
+ * Tailwind, deliberately WITHOUT preflight.
+ *
+ * `@import "tailwindcss"` would pull in preflight -- Tailwind's global
+ * base reset (`*,::before,::after{box-sizing:border-box;margin:0}`,
+ * unstyled headings, etc). Fine for an app that owns the page, and
+ * catastrophic for a widget dropped into someone else's: it would
+ * silently restyle the host's entire document. So we take theme +
+ * utilities only, and provide our own scoped resets further down.
+ *
+ * Tailwind is a BUILD-TIME dependency. What ships is this file compiled
+ * to plain CSS in dist/voice.css -- customers never install Tailwind, and
+ * only the utilities we actually used are emitted.
+ * ------------------------------------------------------------------- */
+
+/* Layer order is declared up front, and every rule of ours goes into
+ * `base`. Without this our rules would be *unlayered*, and for normal
+ * declarations unlayered beats layered no matter the specificity -- so the
+ * zero-specificity `:where(...) button { background: transparent }` reset
+ * below would quietly beat `bg-foreground/4` from @layer utilities, and the
+ * selected tab would never highlight. Specificity is not what decides that
+ * fight; layer order is. `base` sits below `utilities`, so utilities now
+ * win inside our subtree, which is what a component assembled out of them
+ * needs. (This is also why the ID-scoping alternative in DESIGN-CHOICES §1
+ * fails: there, the shield outranks our own utilities too.) */
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* Which files Tailwind scans for class names. Stated explicitly because the
+ * automatic detection keys off the *build's* root rather than this file's --
+ * so the library build (root: packages/voice) found src/ while the dev
+ * server (root: dev/) silently did not, and emitted a stylesheet with almost
+ * none of the utilities the components are built from. Relative to this
+ * file, so it resolves to the same set either way. */
+@source "./";
+
+
+/* shadcn/skiper components are written against semantic token names
+ * (bg-background, bg-muted, text-foreground, border-border...). We map
+ * those to OUR variables rather than defining --color-* values directly,
+ * because the concrete values live in a scoped rule below rather than on
+ * :root -- so a host that also uses Tailwind v4 doesn't get its own
+ * --color-background quietly overwritten by ours. The utilities resolve
+ * correctly inside our subtree and are simply inert outside it.
+ *
+ * `inline reference` is load-bearing, not a tidy-up. A plain @theme emits these to
+ * :root and has the utilities reference them -- `.bg-background {
+ * background-color: var(--color-background) }` -- and a custom property
+ * whose value contains var() is substituted at computed-value time on the
+ * element it is DECLARED on. On :root, --iv-surface doesn't exist, so
+ * --color-background computes to the guaranteed-invalid value and inherits
+ * down that way; redefining --iv-surface further in never gets a second
+ * look. Every semantic utility silently rendered as `transparent` /
+ * `unset`. `@theme inline` instead pastes the value straight into the
+ * utility -- `.bg-background { background-color: var(--iv-surface) }` --
+ * so the lookup happens at the USE site, inside our subtree where
+ * --iv-surface is defined. `reference` then stops the (now unreferenced)
+ * --color-* names being emitted to :root at all, which is what §3 of
+ * DESIGN-CHOICES was after: a host that also uses Tailwind v4 keeps its
+ * own --color-background.
+ */
+@theme inline reference {
+  --color-background: var(--iv-surface);
+  --color-foreground: var(--iv-text);
+  --color-muted: var(--iv-muted-surface);
+  --color-muted-foreground: var(--iv-muted);
+  --color-border: var(--iv-border);
+  --color-accent: var(--iv-accent);
+  --color-destructive: var(--iv-danger);
+}
+
+
+@layer base {
+  .interpreter-panel,
+  .interpreter-widget {
+    --iv-text: #333;
+    --iv-surface: #fff;
+    --iv-border: #e2e2e2;
+    --iv-accent: #5b3bff;
+    --iv-danger: #d3392e;
+    --iv-muted: #888;
+    --iv-muted-surface: #f1f2f4;
+
+    box-sizing: border-box;
+    font: 15px/1.5 system-ui, sans-serif;
+    color: var(--iv-text);
+  }
+
+  .interpreter-panel *,
+  .interpreter-widget * {
+    box-sizing: border-box;
+  }
+
+  /* Preflight-equivalent control reset, scoped to us. We excluded Tailwind's
+     preflight (it would restyle the host's whole document), but its button
+     reset is what lets utilities compose from a neutral base -- without it,
+     an unstyled tab button inherits a decorated default and every utility
+     has to fight it. So: neutral here, decoration on the classes that want
+     it. Being in @layer base is what makes that true; :where() only keeps
+     us from outranking each other *within* the layer. */
+  :where(.interpreter-panel, .interpreter-widget) button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  :where(.interpreter-panel, .interpreter-widget) :is(input, select, textarea) {
+    font: inherit;
+    color: inherit;
+  }
+
+  :where(.interpreter-panel, .interpreter-widget) :is(p, h1, h2, h3, h4) {
+    margin: 0;
+  }
+
+  /* --- Flat panel (usable standalone, or embedded by a host) ---
+   *
+   * The panel is plain CSS end to end: it predates the Tailwind components
+   * and has no utilities in it, so it needs the decorated defaults the reset
+   * above just took away. The BUBBLE deliberately gets none of this -- it
+   * styles every control with utilities, and a `form button {}` rule here
+   * would land on its command input's send button and fight them. */
+
+  .interpreter-panel {
+    width: 320px;
+    border: 1px solid var(--iv-border);
+    border-radius: 10px;
+    background: var(--iv-surface);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  :where(.interpreter-panel) button {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--iv-border);
+    background: #fafafa;
+  }
+
+  :where(.interpreter-panel) :is(input, select, textarea) {
+    padding: 6px 8px;
+    border: 1px solid var(--iv-border);
+    border-radius: 4px;
+    background: var(--iv-surface);
+  }
+
+  :where(.interpreter-panel) form {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    margin: 0;
+  }
+
+  :where(.interpreter-panel) form input {
+    flex: 1;
+  }
+
+  /* --- The floating bubble ---
+   *
+   * Everything inside it is Tailwind; the only job left for plain CSS is
+   * parking it in the corner of the viewport. */
+
+  .interpreter-widget {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 1000;
+    /* The overlay host pins `pointer-events: none` so the listening rim never
+       eats clicks meant for the host app. The panel is the one part that does
+       want them, so it opts back in for its own subtree. */
+    pointer-events: auto;
+  }
+
+  /* --- Panel internals --- */
+
+  .mode-selector {
+    display: flex;
+    gap: 4px;
+  }
+
+  .mode-selector button {
+    flex: 1;
+    font-size: 11px;
+    padding: 4px 6px;
+  }
+
+  .mode-selector .mode-active {
+    background: var(--iv-accent);
+    color: #fff;
+    border-color: var(--iv-accent);
+  }
+
+  .mic-button {
+    padding: 6px 14px;
+    border-radius: 6px;
+    background: var(--iv-accent);
+    color: #fff;
+    border: none;
+    font-weight: 600;
+    align-self: flex-start;
+  }
+
+  .mic-connected {
+    background: var(--iv-danger);
+  }
+
+  .hold-button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    background: #f0eefc;
+    border: 2px solid var(--iv-accent);
+    color: var(--iv-accent);
+    user-select: none;
+    touch-action: none;
+  }
+
+  .hold-button.holding {
+    background: var(--iv-accent);
+    color: #fff;
+  }
+
+  .hold-hint {
+    font-size: 11px;
+    color: var(--iv-muted);
+    text-align: center;
+  }
+
+  .voice-status {
+    font-size: 12px;
+    color: var(--iv-muted);
+  }
+
+  .confirm-banner {
+    background: #fff8e1;
+    border: 1px solid #f0d580;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 13px;
+  }
+
+  .confirm-banner button {
+    margin-right: 6px;
+    margin-top: 6px;
+  }
+
+  .transcript {
+    max-height: 140px;
+    overflow-y: auto;
+    font-size: 13px;
+    border-top: 1px solid var(--iv-border);
+    padding-top: 6px;
+  }
+
+  .turn {
+    margin: 4px 0;
+  }
+
+  .turn-user {
+    color: var(--iv-text);
+  }
+
+  .turn-assistant {
+    color: var(--iv-accent);
+  }
+
+  /* TEMPORARY -- rim geometry sliders in the panel. Goes when
+     rimTuningDev.js does. */
+  .rim-tuning {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-top: 1px solid var(--iv-border);
+    padding-top: 8px;
+  }
+
+  .rim-tuning label {
+    display: flex;
+    flex-direction: column;
+    font-size: 11px;
+    color: var(--iv-muted);
+  }
+
+  .rim-tuning input[type="range"] {
+    width: 100%;
+    accent-color: var(--iv-accent);
+  }
+
+  .rim-tuning button {
+    font-size: 11px;
+    padding: 3px 6px;
+    align-self: flex-start;
+  }
+}

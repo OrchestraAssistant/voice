@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rim tuner</title>
+    <style>
+      /* A stand-in page with content reaching every edge, because a rim tuned
+         against empty margins is tuned against nothing. Scoped to .page so
+         none of it reaches the widget -- see bubble.html for why that matters. */
+      :root { color-scheme: light dark; }
+      body { margin: 0; font: 14px/1.5 system-ui, sans-serif; background: #f4f5f7; color: #1a1d21; }
+      body.dark { background: #0d1117; color: #e6edf3; }
+
+      .page { padding: 22px 26px 40px; max-width: 760px; }
+      .page h1 { font-size: 17px; margin: 0 0 4px; }
+      .page p { margin: 0 0 18px; opacity: 0.65; max-width: 62ch; }
+
+      .panel { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+      fieldset { border: 1px solid rgba(128,128,128,0.3); border-radius: 6px; padding: 12px 14px 14px; margin: 0; }
+      legend { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.6; padding: 0 4px; }
+
+      label { display: flex; align-items: center; gap: 8px; margin: 7px 0; }
+      label span.name { flex: 1; }
+      input[type="range"] { width: 130px; }
+      input[type="color"] { width: 34px; height: 24px; padding: 0; border: 1px solid rgba(128,128,128,0.4); border-radius: 4px; background: none; }
+      output { font: 11px ui-monospace, monospace; opacity: 0.7; min-width: 52px; text-align: right; }
+
+      .states { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+      button { font: inherit; padding: 6px 12px; border-radius: 5px; border: 1px solid rgba(128,128,128,0.4);
+               background: rgba(128,128,128,0.08); color: inherit; cursor: pointer; }
+      button[aria-pressed="true"] { background: #1a1d21; color: #fff; border-color: #1a1d21; }
+      body.dark button[aria-pressed="true"] { background: #e6edf3; color: #0d1117; border-color: #e6edf3; }
+
+      .swatches { display: flex; gap: 4px; margin-top: 8px; }
+      .swatches i { flex: 1; height: 16px; border-radius: 3px; }
+
+      pre { font: 11px/1.5 ui-monospace, monospace; background: rgba(128,128,128,0.1);
+            padding: 10px 12px; border-radius: 5px; overflow-x: auto; margin: 16px 0 0; }
+
+      /* Content at the edges so the rim always has something to sit over. */
+      .edge { position: fixed; background: #2563eb; color: #fff; padding: 6px 10px; font-size: 12px; border-radius: 4px; }
+      .edge.l { left: 8px; top: 46%; }
+      .edge.r { right: 8px; top: 46%; }
+      .edge.b { left: 50%; bottom: 8px; transform: translateX(-50%); }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>Rim tuner</h1>
+      <p>
+        The listening rim, with both palettes live. Flip between states to judge the
+        crossfade; everything below writes straight into the running component.
+      </p>
+      <div id="controls"></div>
+    </div>
+    <aside class="edge l">left edge</aside>
+    <aside class="edge r">right edge</aside>
+    <aside class="edge b">bottom edge</aside>
+    <div id="mount"></div>
+    <script type="module" src="./rim-main.jsx"></script>
+  </body>
+</html>
