@@ -44,6 +44,14 @@ export function installSkill(argv = []) {
 }
 
 // Runnable directly as a bin; also dispatched from generate.js's `skill` subcommand.
-if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
+// Compare real paths: an installed bin runs through a node_modules/.bin symlink.
+function isMain() {
+  try {
+    return fs.realpathSync(fileURLToPath(import.meta.url)) === fs.realpathSync(process.argv[1] ?? "");
+  } catch {
+    return false;
+  }
+}
+if (isMain()) {
   installSkill(process.argv.slice(2));
 }

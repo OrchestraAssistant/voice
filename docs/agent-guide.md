@@ -8,11 +8,14 @@ executes the calls. Your job is to install the packages, build a good manifest,
 and mount that route. There is no separate service to point at — the backend is
 one endpoint in this app.
 
-Not on npm yet: the three packages install from the GitHub release (pre-built,
-so the host needs no build step or Tailwind). Do the steps in order — each is a
-real command you run in the app's repo.
+This page is self-contained: start here with nothing installed. Not on npm yet:
+the three packages install from the GitHub release (pre-built, so the host needs
+no build step or Tailwind). Do the steps in order — each is a real command you
+run in the app's repo.
 
 ## 1. Install the packages
+
+Skip this step if `node_modules/@expert/voice-cli` already exists.
 
 ```
 REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4
@@ -32,9 +35,11 @@ The **`expert-voice`** skill IS the detailed workflow. Read it and follow it
 NOW — do not wait for skill discovery or a restart:
 
 ```
-npx voice-skill --print      # prints the full procedure; read it and do it
-# optional, for future sessions:  npx voice-skill   (installs it into .claude/skills)
+cat node_modules/@expert/voice-cli/skills/expert-voice/SKILL.md   # the full procedure, matching the installed version
+# optional, for future sessions:  npx voice-cli skill   (installs it into .claude/skills)
 ```
+
+The skill's stage 0 (install) is already done by step 1 above; start at stage 1.
 
 In outline, so you know where you are going:
 

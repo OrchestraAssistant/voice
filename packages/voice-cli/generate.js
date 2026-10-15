@@ -30,7 +30,7 @@ if (process.argv[2] === "skill") {
 
 const USAGE = `voice-cli -- turn a React app's source into .voice/manifest.json
 
-  npx @expert/voice-cli [srcDir] [outDir]
+  npx voice-cli [srcDir] [outDir]
 
   srcDir   where the app's source lives   (default: ./src, falling back to .)
   outDir   where the manifest is written  (default: ./.voice)
@@ -42,10 +42,10 @@ const USAGE = `voice-cli -- turn a React app's source into .voice/manifest.json
                       manifest's contractHash to the source. Exit 1 if the
                       app's callable surface has drifted (a CI staleness gate).
 
-  npx @expert/voice-cli skill [--print]
+  npx voice-skill [--print]
                       install the skill that teaches your agent the whole
                       workflow -- generate, probe, and the judgement pass.
-                      (Other agents: npx skills add <repo> --skill expert-voice)
+                      (Other agents: npx skills add OrchestraAssistant/voice --skill expert-voice)
 
 Run it from your app's root. Every stage that fired is listed in the output,
 along with every one that found nothing and why. --only and --without exist so

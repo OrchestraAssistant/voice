@@ -24,12 +24,31 @@ The manifest is built in three stages, each doing only what it can, in order:
   operations a person would speak to, what each is FOR in a sentence, and the
   contracts a handler enforces but the schema never states.
 
+## 0. Install — only if the app does not have the packages yet
+
+Check first: `ls node_modules/@expert/voice-cli` from the app root. If it is
+there, skip to stage 1. If not, install from the GitHub release (the packages
+are not on npm yet, so `npx` alone will NOT find them):
+
+```
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.4
+npm install    $REL/expert-voice-0.1.4.tgz          # the widget (runtime)
+npm install -D $REL/expert-voice-cli-0.1.4.tgz      # this CLI (build-time tooling)
+npm install    $REL/expert-voice-server-0.1.4.tgz   # the backend route (runtime)
+```
+
+Use the app's package manager (`yarn add <url>`, `pnpm add <url>`). If the
+frontend and backend are separate packages, the widget goes in the frontend and
+the server package in the backend. Wiring the widget and mounting the `/voice`
+route are in the agent guide:
+https://github.com/OrchestraAssistant/voice/blob/main/docs/agent-guide.md
+
 ## 1. Generate
 
 From the app root:
 
 ```
-npx @expert/voice-cli [srcDir] [outDir]     # defaults: ./src (or .) -> ./.voice
+npx voice-cli [srcDir] [outDir]     # defaults: ./src (or .) -> ./.voice
 ```
 
 This writes `.voice/manifest.json`. Read the output — every stage that fired,

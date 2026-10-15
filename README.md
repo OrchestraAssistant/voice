@@ -74,13 +74,17 @@ Then generate a manifest from your source:
 npx voice-cli src .voice     # your source dir -> .voice/manifest.json
 ```
 
-**Or let your coding agent do the integration.** Point it at
-[docs/agent-guide.md](docs/agent-guide.md), which walks install → manifest →
+**Or let your coding agent do the integration.** Nothing needs to be installed
+first; tell the agent, in the app's repo:
+
+> Read https://raw.githubusercontent.com/OrchestraAssistant/voice/main/docs/agent-guide.md and follow it.
+
+The [guide](docs/agent-guide.md) installs the packages, then walks manifest →
 widget → backend route. The detailed manifest workflow is the `expert-voice`
-skill:
+skill, which also installs the packages if they are missing:
 
 ```bash
-npx voice-skill                                              # Claude Code: copies it into .claude/skills
+npx voice-cli skill                                          # Claude Code: copies it into .claude/skills
 npx skills add OrchestraAssistant/voice --skill expert-voice   # other agents
 ```
 
