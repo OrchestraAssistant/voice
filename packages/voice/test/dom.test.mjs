@@ -128,6 +128,37 @@ describe("what the agent can see and touch", { concurrency: false }, () => {
     assert.equal(await page.inputValue("#host-title"), "Quick chat");
   });
 
+  test("a dropdown takes one of its options, by value or by what it shows; any other is an error", async () => {
+    const out = await page.evaluate(() => {
+      const select = document.createElement("select");
+      select.id = "host-theme";
+      select.setAttribute("aria-label", "Theme");
+      for (const [value, text] of [["light", "Light"], ["dark", "Dark"]]) select.add(new Option(text, value));
+      let changes = 0;
+      select.addEventListener("change", () => changes++);
+      document.body.append(select);
+      const id = window.__dom.snapshot().find((e) => e.label === "Theme").id;
+      window.__dom.typeText(id, "Dark");
+      const byText = select.value;
+      window.__dom.typeText(id, "light");
+      const byValue = select.value;
+      let error = null;
+      try {
+        window.__dom.typeText(id, "blue");
+      } catch (err) {
+        error = err.message;
+      }
+      const after = select.value;
+      select.remove();
+      return { byText, byValue, after, error, changes };
+    });
+    assert.equal(out.byText, "dark");
+    assert.equal(out.byValue, "light");
+    assert.equal(out.after, "light", "a choice it does not have changed it anyway");
+    assert.match(out.error, /not one of this dropdown's options: Light, Dark/);
+    assert.equal(out.changes, 2);
+  });
+
   test("an element that left the page says so instead of doing nothing", async () => {
     // React replaces nodes on almost every state change, so an id captured
     // before an action is routinely detached after it. Clicking a detached

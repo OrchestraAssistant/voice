@@ -231,6 +231,50 @@ function datePaths(node, prefix = [], depth = 0) {
   return [];
 }
 
+/**
+ * The value format a field's validation spells out, in JSON Schema's words:
+ * `z.string().date()` is a date, `.email()` an email address. The base type
+ * stays "string"; the format says what string. Only for formats a value must
+ * be written in (a due date sent as "November 1st, 2026" is stored as that).
+ */
+const ZOD_FORMATS = { date: "date", datetime: "date-time", time: "time", email: "email", url: "uri" };
+function formatOf(node) {
+  for (const m of wrapperMethods(node)) if (ZOD_FORMATS[m]) return ZOD_FORMATS[m];
+  const { base } = unwrap(node);
+  const method = base?.callee?.object?.name === "z" ? base.callee.property?.name : null;
+  return method === "email" || method === "url" ? ZOD_FORMATS[method] : undefined;
+}
+
+/**
+ * The format of each form field an <input type> declares, by the field's
+ * name: `<input type="date" {...register("dueDate")} />` or `name="dueDate"`.
+ * A schema often says only `z.string()` where the form beside it says date;
+ * the input is what the user fills, so its type is the value's format.
+ */
+const INPUT_FORMATS = { date: "date", "datetime-local": "date-time", time: "time", email: "email", url: "uri" };
+function inputFormats(ast, visit) {
+  const out = new Map();
+  visit(ast, {
+    JSXOpeningElement(nodePath) {
+      const el = nodePath.node;
+      if (el.name?.name !== "input") return;
+      let type = null;
+      let name = null;
+      for (const attr of el.attributes) {
+        if (attr.type === "JSXAttribute" && attr.value?.type === "StringLiteral") {
+          if (attr.name?.name === "type") type = attr.value.value;
+          if (attr.name?.name === "name") name = attr.value.value;
+        }
+        // {...register("dueDate")}: react-hook-form, the common case.
+        const call = attr.type === "JSXSpreadAttribute" ? attr.argument : null;
+        if (call?.type === "CallExpression" && call.callee?.name === "register" && call.arguments[0]?.type === "StringLiteral") name = call.arguments[0].value;
+      }
+      if (name && INPUT_FORMATS[type]) out.set(name, INPUT_FORMATS[type]);
+    },
+  });
+  return out;
+}
+
 function fieldsOf(objectExpression) {
   return objectExpression.properties.map((prop) => {
     // A SpreadElement (`z.object({ ...Base.shape, title: ... })`) has no `.key`;
@@ -256,6 +300,7 @@ function fieldsOf(objectExpression) {
     const shape = shapeOf(prop.value, 0, ctx);
     // The paths to any dates inside, so the transport can tag them for superjson.
     const dates = datePaths(prop.value);
+    const format = type === "string" ? formatOf(prop.value) : undefined;
     // Whether a human/LLM should look before this field is trusted on the API.
     const review = fieldReview({ type, node: prop.value, truncated: ctx.truncated });
     return {
@@ -263,6 +308,7 @@ function fieldsOf(objectExpression) {
       required,
       type,
       ...(enumValues ? { enumValues } : {}),
+      ...(format ? { format } : {}),
       ...(shape && /[<{]/.test(shape) ? { shape } : {}),
       ...(dates.length ? { dates } : {}),
       ...(review ? { review } : {}),
@@ -271,7 +317,7 @@ function fieldsOf(objectExpression) {
 }
 
 // Exported for tests; the enricher above is the only production caller.
-export { fieldsOf, shapeOf, datePaths, opacity, fieldReview };
+export { fieldsOf, shapeOf, datePaths, opacity, fieldReview, inputFormats };
 
 export const zodBodies = {
   name: "zod-bodies",
@@ -375,7 +421,9 @@ export const zodBodies = {
       if (schemas.length === 1 && writeHooks.length === 1) {
         const action = actions.find((a) => a._hookName === writeHooks[0]);
         if (action && !action.bodyFields.length) {
-          action.bodyFields = schemas[0];
+          // The form in this file says what its plain strings hold.
+          const formats = inputFormats(ast, visit);
+          action.bodyFields = schemas[0].map((f) => (f.type === "string" && !f.format && formats.has(f.name) ? { ...f, format: formats.get(f.name) } : f));
           enriched.push(action.name);
         }
       }

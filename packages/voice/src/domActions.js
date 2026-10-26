@@ -277,6 +277,7 @@ function nativeValueSetter(tagName) {
   nativeValueSetters ??= {
     INPUT: Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set,
     TEXTAREA: Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set,
+    SELECT: Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value")?.set,
   };
   return nativeValueSetters[tagName];
 }
@@ -318,6 +319,15 @@ function fillElement(el, text) {
     }
     el.dispatchEvent(new Event("change", { bubbles: true }));
     return;
+  }
+
+  // A dropdown takes one of its options: by value ("light") or by what it
+  // shows ("Light"). Anything else is not a choice it has, and says so.
+  if (el.tagName === "SELECT") {
+    const want = String(text).trim().toLowerCase();
+    const option = Array.from(el.options).find((o) => o.value.toLowerCase() === want || o.text.trim().toLowerCase() === want);
+    if (!option) throw new Error(`"${text}" is not one of this dropdown's options: ${Array.from(el.options).map((o) => o.text.trim()).join(", ")}`);
+    text = option.value;
   }
 
   const setter = nativeValueSetter(el.tagName);

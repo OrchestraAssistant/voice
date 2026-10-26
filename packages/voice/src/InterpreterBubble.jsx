@@ -243,6 +243,14 @@ function TalkTabContent() {
     capabilities,
   } = useInterpreter();
   const [textInput, setTextInput] = useState("");
+  // The newest line in view: the list is a scroll box, and without this it
+  // stayed at the top while the conversation went on below.
+  const transcriptRef = useRef(null);
+  const last = transcript.at(-1);
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [transcript.length, last?.text]);
   const live = transport === "ready" && micAttached;
   const busy = live || transport === "connecting";
 
@@ -312,7 +320,7 @@ function TalkTabContent() {
       {error && <p className="text-destructive px-2 py-1 text-xs">{error}</p>}
 
       {transcript.length > 0 && (
-        <div className="mt-1 max-h-44 space-y-1 overflow-y-auto p-1">
+        <div ref={transcriptRef} className="mt-1 max-h-44 space-y-1 overflow-y-auto p-1">
           {transcript.slice(-8).map((turn, i) => (
             <p
               key={i}

@@ -2,7 +2,8 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { parse } from "@babel/parser";
 
-import { fieldsOf } from "../../schema/zod.js";
+import traverse from "@babel/traverse";
+import { fieldsOf, inputFormats } from "../../schema/zod.js";
 
 /** Parse a `z.object({...})` snippet and read its fields the way the enricher does. */
 function fields(src) {
@@ -125,5 +126,26 @@ describe("spreads and defaults (eval-fixes regressions)", () => {
 
   test("a plain field is still required", () => {
     assert.equal(field("const S = z.object({ title: z.string() })", "title").required, true);
+  });
+});
+
+describe("value formats", () => {
+  test("the schema's own format: .date(), .datetime(), .email(), .url()", () => {
+    const src = "const S = z.object({ due: z.string().date().optional(), at: z.string().datetime(), email: z.string().email(), site: z.string().url(), title: z.string().min(1) })";
+    assert.equal(field(src, "due").format, "date");
+    assert.equal(field(src, "at").format, "date-time");
+    assert.equal(field(src, "email").format, "email");
+    assert.equal(field(src, "site").format, "uri");
+    assert.equal(field(src, "title").format, undefined);
+    assert.equal(field(src, "due").type, "string");
+  });
+
+  test("a form's <input type> says what a plain string holds", () => {
+    const ast = parse(
+      'export default () => <form><input type="date" {...register("dueDate")} /><input name="email" type="email" /><input type="text" {...register("title")} /><input type="checkbox" name="done" /></form>',
+      { sourceType: "module", plugins: ["jsx"] },
+    );
+    const formats = inputFormats(ast, traverse.default ?? traverse);
+    assert.deepEqual(Object.fromEntries(formats), { dueDate: "date", email: "email" });
   });
 });
