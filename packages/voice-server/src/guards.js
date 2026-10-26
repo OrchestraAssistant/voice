@@ -79,6 +79,7 @@ export function createRateLimiter({ max = 30, windowMs = 60000 } = {}) {
  * @param {(request)=>string} [opts.clientId]  identity for the limiter
  * @param {boolean}  [opts.trustAuth]   the host enforces auth upstream; silences the warning
  * @param {string}   [opts.label="openaiVoiceHandler"]  name used in the warning
+ * @param {string}   [opts.risk]  what an open route gives away, for the warning
  */
 export function buildGuard(opts = {}) {
   const {
@@ -90,15 +91,15 @@ export function buildGuard(opts = {}) {
     clientId = clientIdFromRequest,
     trustAuth = false,
     label = "openaiVoiceHandler",
+    risk = "/voice/session mints OpenAI tokens billed to your key, so an unauthenticated public route is an open, billable proxy",
   } = opts;
 
   const limiter = rateLimit === false ? null : createRateLimiter({ max: rateLimit, windowMs: rateWindowMs });
 
   if (!secret && !requireAuth && !trustAuth) {
     console.warn(
-      `⚠  ${label}: mounted with no auth guard. /voice/session mints OpenAI ` +
-        `tokens billed to your key, so an unauthenticated public route is an open, ` +
-        `billable proxy. Gate the route behind your app's auth, or pass { requireAuth }, ` +
+      `⚠  ${label}: mounted with no auth guard. ${risk}. ` +
+        `Gate the route behind your app's auth, or pass { requireAuth }, ` +
         `{ secret }, or { trustAuth: true } if auth is enforced upstream. ` +
         `(A per-IP rate limit${limiter ? " is" : " is NOT"} active${limiter ? "" : " -- rateLimit:false"}.)`,
     );

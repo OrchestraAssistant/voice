@@ -1,7 +1,7 @@
 {
   "name": "@expert/voice-server",
-  "version": "0.1.5",
-  "description": "Server-half handlers for @expert/voice providers: the OpenAI Realtime relay, as a mountable Web (Request)=>Response handlers.",
+  "version": "0.1.6",
+  "description": "Server-half handlers for @expert/voice providers, as mountable Web (Request)=>Response handlers: the Orchestra token route and the OpenAI Realtime relay.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,6 +10,7 @@
   },
   "type": "module",
   "exports": {
+    "./orchestra": "./dist/orchestra.js",
     "./openai": "./dist/openai.js",
     "./package.json": "./package.json"
   },
@@ -17,7 +18,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "esbuild src/openai.js --bundle --platform=node --format=esm --outdir=dist --packages=external",
+    "build": "esbuild src/openai.js src/orchestra.js --bundle --platform=node --format=esm --outdir=dist --packages=external",
     "prepack": "npm run build",
     "test": "node --test test/*.test.mjs"
   },

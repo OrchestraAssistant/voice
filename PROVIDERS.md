@@ -3,9 +3,10 @@
 `@expert/voice` is a **core** (a React widget, a browser executor, a
 confirmation gate, a manifest runtime) with a **swappable provider** for the
 voice-to-action pipeline — the same shape the Vercel AI SDK has (`ai` core +
-`@ai-sdk/openai` / `@ai-sdk/anthropic`). A provider adapts one realtime voice
-API (OpenAI Realtime today) to the widget; the contract is how another one, such
-as ElevenLabs Agents or Gemini Live, plugs in.
+`@ai-sdk/openai` / `@ai-sdk/anthropic`). Two ship: **`orchestra()`**, the
+default, Orchestra's hosted engine; and **`openaiRealtime()`**, OpenAI Realtime
+on the app's own key. The contract is how another one, such as ElevenLabs
+Agents or Gemini Live, plugs in.
 
 ```
    voice in ──►  [ PROVIDER ]  ──► decided tool call ──►  [ EXECUTOR ]  ──► your app
@@ -167,9 +168,14 @@ goes through the provider's server half; the browser half is always keyless.**
 - `provider.mint`/`connect` reach a server endpoint the app configures (the
   "broker"). That endpoint holds the key, reads it from its own environment, and
   returns only a short-lived handle.
-- **OOTB:** the relay is the broker. BYOK means running it with *your*
-  `OPENAI_API_KEY` (and, if exposed, a `VOICE_RELAY_SECRET` — see the README's
-  "Securing the relay").
+- **Orchestra:** the app's server holds its Orchestra key (`ORCHESTRA_KEY`) and
+  mounts `orchestraTokenHandler` at `/voice/token`, which trades it for a
+  short-lived session token. The page talks to the service with that token and
+  renews it through the route when it lapses. Orchestra checks the page's
+  origin against the ones registered for the app.
+- **OpenAI Realtime:** the relay is the broker. BYOK means running it with
+  *your* `OPENAI_API_KEY` (and, if exposed, a `VOICE_RELAY_SECRET` — see the
+  README's "Securing the relay").
 - **Another realtime API:** its server half mints that vendor's short-lived
   session token from *your* key. Your key, your infra. The rule holds for every
   provider: the key never reaches the page.
@@ -260,15 +266,16 @@ only while it is live.
 
 ```
 @expert/voice            core: the widget, the executor, the gate, the manifest
-                         runtime, AND the client half of the provider
-                         (openaiRealtime)
+                         runtime, AND the client halves of the providers
+                         (orchestra, openaiRealtime)
 @expert/voice-cli        the manifest generator (build-time)
 @expert/voice-server     the SERVER halves, as mountable Web handlers:
-                           /openai  -> openaiVoiceHandler   (the realtime relay)
+                           /orchestra -> orchestraTokenHandler (the session token route)
+                           /openai    -> openaiVoiceHandler    (the realtime relay)
 ```
 
 The split is by **side**, not by provider: client halves live in the core (so the
-widget can default to realtime with no extra install), and the credentialed server
+widget works with its default engine with no extra install), and the credentialed server
 halves live in `@expert/voice-server` — a separate entry so server code and keys
 never reach the browser bundle. A provider is still a pair that agree on one route;
 the two halves just ship in these two packages.
@@ -280,6 +287,11 @@ separate service. Mount the provider's handler at a route in the app's own
 backend, and point the client half at the same path. The recipe is uniform:
 
 ```ts
+// Orchestra (the default) — app/voice/token/route.ts
+import { orchestraTokenHandler } from "@expert/voice-server/orchestra";
+export const POST = orchestraTokenHandler(); // ORCHESTRA_KEY, ORCHESTRA_URL from env
+//   client: <VoiceProvider …>   (orchestra() is the default; it asks /voice/token)
+
 // OpenAI Realtime — app/voice/[...path]/route.ts
 import { openaiVoiceHandler } from "@expert/voice-server/openai";
 const h = openaiVoiceHandler();            // OPENAI_API_KEY from env; serves /options,/session,/log
@@ -288,8 +300,8 @@ export const GET = h; export const POST = h;
 ```
 
 `toExpressHandler` adapts it for non-Web-standard backends. The handler is a
-**mint**: one call per session, cheap on serverless. The audio then flows
-between the browser and the vendor directly.
+**mint**: one call per session (Orchestra: one per hour), cheap on serverless.
+After that the page talks to the engine directly.
 
 ---
 
@@ -304,8 +316,10 @@ between the browser and the vendor directly.
 2. **Tool execution is local and fixed.** The provider proposes tool calls via
    `onToolCall`; the *core* executes them in the browser (cookies + DOM). A
    **server-side** realtime agent must therefore **bridge** its model's tool
-   calls down to the browser and the result back up. Prefer realtime APIs that
-   support client-side tools, where `onToolCall` fires in the page.
+   calls down to the browser and the result back up. Orchestra is one: the
+   service answers a turn with the tools it needs run, the page runs them
+   through `onToolCall` and sends the results back. Otherwise prefer realtime
+   APIs that support client-side tools, where `onToolCall` fires in the page.
 3. **Safety is the core's, not the provider's.** The confirmation gate lives in
    the executor, so a custom provider can only ever *propose* a destructive
    action; the core stages and confirms it.
@@ -314,7 +328,9 @@ between the browser and the vendor directly.
 
 ## Status
 
-- **Shipped:** the contract; the **`openaiRealtime`** provider; the core
+- **Shipped:** the contract; **`orchestra`**, the default (hosted engine, its
+  token route in `@expert/voice-server/orchestra`); the **`openaiRealtime`**
+  provider; the core
   `VoiceProvider` routed through the contract as its single path (`warm`,
   `connect` and `mint` all go through the active provider, and a live **engine
   picker** switches among several, with capability-adaptive controls driven

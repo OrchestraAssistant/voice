@@ -1,11 +1,14 @@
 # voice
 
 Voice control for React apps. Static analysis turns an app into a manifest of
-what it can do; a relay mints realtime-voice sessions with that manifest as
-the tool list; a widget executes the calls in the browser — manifest-driven
-first, DOM fallback second, with a confirmation gate on destructive actions.
+what it can do; a voice engine decides what each thing the user says means for
+the app; a widget executes the calls in the browser — manifest-driven first,
+DOM fallback second, with a confirmation gate on destructive actions.
 
-**Working end to end today**, against the real OpenAI Realtime API.
+The default engine is **Orchestra**, hosted: the app registers and gets a key,
+its server mounts one route that trades the key for short-lived session
+tokens, and the page talks to the service. **OpenAI Realtime** on the app's own
+OpenAI key is the alternative; both run end to end today.
 
 | doc | for |
 |---|---|
@@ -58,14 +61,14 @@ Install the **tarballs** from a release instead. They're pre-built (`dist` is
 bundled), so the host needs no build step and no Tailwind:
 
 ```bash
-REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5
-npm install    $REL/expert-voice-0.1.5.tgz          # the widget
-npm install -D $REL/expert-voice-cli-0.1.5.tgz      # the manifest generator
-npm install    $REL/expert-voice-server-0.1.5.tgz   # the backend route (see below)
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.6
+npm install    $REL/expert-voice-0.1.6.tgz          # the widget
+npm install -D $REL/expert-voice-cli-0.1.6.tgz      # the manifest generator
+npm install    $REL/expert-voice-server-0.1.6.tgz   # the backend route (see below)
 
 # or from local tarballs, built in this repo with `npm run pack:all`:
-npm install ./pkg/expert-voice-0.1.5.tgz ./pkg/expert-voice-server-0.1.5.tgz
-npm install -D ./pkg/expert-voice-cli-0.1.5.tgz
+npm install ./pkg/expert-voice-0.1.6.tgz ./pkg/expert-voice-server-0.1.6.tgz
+npm install -D ./pkg/expert-voice-cli-0.1.6.tgz
 ```
 
 Then generate a manifest from your source:
@@ -185,12 +188,23 @@ a TLS proxy set `VOICE_TRUST_PROXY=1` so the limiter sees the real client.
 You don't need to run the relay standalone. Install `@expert/voice-server` (the
 server halves of the providers) and mount one route in your own backend — the key
 lives there, and the route sits behind your app's existing auth. **The recipe is
-the same for every engine: set the keys in env → mount the provider's handler at
-`/voice` → point the client at `/voice`.**
+the same for every engine: set the key in env → mount the provider's handler
+under `/voice` → the widget calls it, same origin.**
 
 ```bash
-npm install https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5/expert-voice-server-0.1.5.tgz
+npm install https://github.com/OrchestraAssistant/voice/releases/download/v0.1.6/expert-voice-server-0.1.6.tgz
 ```
+
+```ts
+// Orchestra (the default) — app/voice/token/route.ts (Next.js App Router)
+import { orchestraTokenHandler } from "@expert/voice-server/orchestra";
+export const POST = orchestraTokenHandler(); // reads ORCHESTRA_KEY, ORCHESTRA_URL from env
+// client: <VoiceProvider …> with no provider prop (orchestra() is the default)
+```
+
+The page gets a session token from that route, learns the service's address
+from it, and talks to Orchestra directly; the key never leaves your server.
+Orchestra serves only pages from the origins registered for the app.
 
 ```ts
 // OpenAI Realtime — app/voice/[...path]/route.ts (Next.js App Router)
@@ -201,8 +215,9 @@ export const POST = handler;
 // client: <VoiceProvider relayUrl="" …>  (empty = same origin)
 ```
 
-**Guard the route.** `/voice/session` mints tokens billed to your key, so an
-unauthenticated public route is an open, billable proxy. Mounted behind your
+**Guard the route.** `/voice/token` hands out sessions on your Orchestra
+account, and `/voice/session` mints tokens billed to your OpenAI key, so either
+as an unauthenticated public route is an open proxy. Mounted behind your
 app's auth it already is gated — pass `{ trustAuth: true }` to say so. If it is
 not, lock it with the handler's opt-in guards; either way the handler **warns
 once at startup when it sees no guard** so the mistake is loud, not silent:
@@ -225,19 +240,19 @@ provider contract is in PROVIDERS.md.
 
 ### Swap the engine, or offer several
 
-OpenAI Realtime is the default. The realtime voice API sits behind a
-**provider** contract (`{ id, capabilities, connect }` — see PROVIDERS.md), so
-another realtime API can plug in. Pass one with `provider=`, or pass a list the
-user can pick from in Settings, exactly like the model picker but one level up:
+Orchestra is the default. Every engine sits behind a **provider** contract
+(`{ id, capabilities, connect }` — see PROVIDERS.md), so OpenAI Realtime or
+another engine can plug in. Pass one with `provider=`, or pass a list the user
+can pick from in Settings, exactly like the model picker but one level up:
 
 ```jsx
-import { VoiceProvider, openaiRealtime } from "@expert/voice";
+import { VoiceProvider, orchestra, openaiRealtime } from "@expert/voice";
 
 <VoiceProvider
   manifest={manifest}
   providers={[
+    { label: "Orchestra",       provider: orchestra() },
     { label: "OpenAI Realtime", provider: openaiRealtime({ relayUrl }) },
-    { label: "Other realtime",  provider: myRealtime() }, // see PROVIDERS.md
   ]}
 >
   <Interpreter />

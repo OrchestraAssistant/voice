@@ -9,9 +9,11 @@ description: Set up and maintain @expert/voice for an app — generate the manif
 the app's operations — queries, actions, routes — that the voice agent drives.
 This skill is how you BUILD and MAINTAIN that manifest well.
 
-You are the code-literate agent already open with the repo. There is no API key
-and no separate model to provision: you run the package's own tools and read the
-app's source. That is the whole point.
+You are the code-literate agent already open with the repo. Building the
+manifest needs no API key and no model to provision: you run the package's own
+tools and read the app's source. That is the whole point. (Running voice needs
+the engine's key on the app's server: Orchestra's by default. The agent guide's
+step 4 has it.)
 
 The manifest is built in three stages, each doing only what it can, in order:
 
@@ -31,16 +33,16 @@ there, skip to stage 1. If not, install from the GitHub release (the packages
 are not on npm yet, so `npx` alone will NOT find them):
 
 ```
-REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5
-npm install    $REL/expert-voice-0.1.5.tgz          # the widget (runtime)
-npm install -D $REL/expert-voice-cli-0.1.5.tgz      # this CLI (build-time tooling)
-npm install    $REL/expert-voice-server-0.1.5.tgz   # the backend route (runtime)
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.6
+npm install    $REL/expert-voice-0.1.6.tgz          # the widget (runtime)
+npm install -D $REL/expert-voice-cli-0.1.6.tgz      # this CLI (build-time tooling)
+npm install    $REL/expert-voice-server-0.1.6.tgz   # the backend route (runtime)
 ```
 
 Use the app's package manager (`yarn add <url>`, `pnpm add <url>`). If the
 frontend and backend are separate packages, the widget goes in the frontend and
-the server package in the backend. Wiring the widget and mounting the `/voice`
-route are in the agent guide:
+the server package in the backend. Wiring the widget and mounting the server
+route (`/voice/token`, for Orchestra) are in the agent guide:
 https://github.com/OrchestraAssistant/voice/blob/main/docs/agent-guide.md
 
 ## Ask the developer: the standalone widget, or a UI of the app's own?
@@ -60,7 +62,7 @@ is theirs. Put it to them like this:
   components, which you write with them.
 
 Recommend A to try it out, unless the developer already named a constraint.
-Switching later is cheap: the manifest, the overlay and the `/voice` route are
+Switching later is cheap: the manifest, the overlay and the server route are
 identical for both, and so is everything below. If you cannot ask (a
 non-interactive run), go with A and say that you chose it.
 
@@ -85,7 +87,7 @@ still provide:
 3. **Start/stop**: `start()`, `stop()`, and `transport` for the connection
    state. If `mode` is `"ptt"` (push-to-talk), call `holdStart()` / `holdEnd()`
    on press and release.
-4. **Errors**: show `error`. A missing `/voice` route or key surfaces there, and
+4. **Errors**: show `error`. A missing server route or key surfaces there, and
    a UI that hides it fails silently.
 5. Hide the controls the live engine lacks: `capabilities.pushToTalk`,
    `.textInput` (gates `sendText`), `.bargeIn`, `.warm`.

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { isUsable } from "./realtimeClient.js";
 import { openaiRealtime } from "./providers/openaiRealtime.js";
+import { orchestra } from "./providers/orchestra/orchestra.js";
 import { toolCatalog, validateProvider } from "./providers/contract.js";
 import { OverlayProvider } from "./ScreenOverlay.jsx";
 import { createRelayLogger } from "./relayLog.js";
@@ -17,6 +18,7 @@ const InterpreterContext = createContext(null);
 // A friendly name for each built-in provider, used in the engine picker when
 // the host passes a bare provider rather than a { label, provider } entry.
 const PROVIDER_LABELS = {
+  orchestra: "Orchestra",
   "openai-realtime": "OpenAI Realtime",
 };
 
@@ -103,15 +105,16 @@ export function VoiceProvider({
    * OpenAI Realtime, whatever another realtime API needs); the user then picks among
    * them in Settings, the same way they pick a model.
    *
-   * Omitted, it defaults to the OpenAI Realtime reference provider pointed at
-   * `relayUrl` -- the single-provider behaviour this widget has always had.
+   * Omitted, it defaults to Orchestra, the hosted provider, whose token route
+   * is `${relayUrl}/voice/token` on the app's own server. OpenAI Realtime is
+   * `provider={openaiRealtime()}`, with its relay at `relayUrl`.
    * Pass a stable array (define it outside render or memoise it); a fresh array
    * each render re-validates the providers and is wasted work.
    */
   providers,
   /**
    * A single provider -- the ergonomic form of a one-entry `providers`. Ignored
-   * when `providers` is given. `provider={openaiRealtime()}` and the default are
+   * when `providers` is given. `provider={orchestra()}` and the default are
    * the same thing written two ways.
    */
   provider,
@@ -166,7 +169,7 @@ export function VoiceProvider({
   // <VoiceProvider relayUrl=...> behaves exactly as before.
   const providerList = useMemo(() => {
     const raw =
-      providers && providers.length ? providers : provider ? [provider] : [openaiRealtime({ relayUrl })];
+      providers && providers.length ? providers : provider ? [provider] : [orchestra({ tokenUrl: `${relayUrl}/voice/token` })];
     return raw.map((entry) => {
       const p = entry && typeof entry.connect === "function" ? entry : entry?.provider;
       validateProvider(p); // throws at mount on a factory passed uncalled, etc.
@@ -290,7 +293,11 @@ export function VoiceProvider({
     }
   }, [manifest]);
 
+  // The realtime relay's model options: asked only when a realtime provider is
+  // on offer (another provider has no relay to answer).
+  const offersRealtime = providerList.some((p) => p.id === "openai-realtime");
   useEffect(() => {
+    if (!offersRealtime) return;
     fetch(`${relayUrl}/voice/options`)
       .then((r) => r.json())
       .then((o) => {
@@ -301,7 +308,7 @@ export function VoiceProvider({
         // Non-fatal: without options the settings UI simply offers nothing to
         // change, and the relay's own defaults still apply.
       });
-  }, [relayUrl]);
+  }, [relayUrl, offersRealtime]);
 
   const findQuery = (name) => manifest.queries.find((q) => q.name === name);
   const findAction = (name) => manifest.actions.find((a) => a.name === name);

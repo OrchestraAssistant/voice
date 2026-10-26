@@ -2,11 +2,16 @@
 
 You are an agent helping a developer add voice control to their web app using
 **@expert/voice**. Static analysis turns the app's source into a *manifest* of
-what it can do; a small **route in the app itself** mints realtime-voice sessions
-from that manifest (holding the OpenAI key server-side); a widget in the browser
-executes the calls. Your job is to install the packages, build a good manifest,
-and mount that route. There is no separate service to point at — the backend is
-one endpoint in this app.
+what it can do; a widget in the browser listens, and runs what the voice engine
+decides (a page, a query, an action, a click) in the app, with the user's own
+session. Your job is to install the packages, build a good manifest, wire the
+widget, and mount **one small route in the app's own server** that holds the
+app's key.
+
+The engine is **Orchestra** (the default): a hosted service. The app registers
+with Orchestra and gets a secret key; the route trades it for short-lived
+session tokens for the page, so the key never reaches a browser. The
+alternative is OpenAI Realtime on the app's own OpenAI key (step 4 has both).
 
 This page is self-contained: start here with nothing installed. Not on npm yet:
 the three packages install from the GitHub release (pre-built, so the host needs
@@ -18,10 +23,10 @@ run in the app's repo.
 Skip this step if `node_modules/@expert/voice-cli` already exists.
 
 ```
-REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.5
-npm install    $REL/expert-voice-0.1.5.tgz          # the widget (runtime)
-npm install -D $REL/expert-voice-cli-0.1.5.tgz      # the CLI (build-time tooling)
-npm install    $REL/expert-voice-server-0.1.5.tgz   # the backend route (runtime)
+REL=https://github.com/OrchestraAssistant/voice/releases/download/v0.1.6
+npm install    $REL/expert-voice-0.1.6.tgz          # the widget (runtime)
+npm install -D $REL/expert-voice-cli-0.1.6.tgz      # the CLI (build-time tooling)
+npm install    $REL/expert-voice-server-0.1.6.tgz   # the backend route (runtime)
 ```
 
 If the frontend and backend are separate packages, the widget goes in the
@@ -73,9 +78,9 @@ provider, the manifest and the route below are the same either way. What
 follows is the standalone path.
 
 Mount the provider once, inside the app's router, pass it the generated
-manifest, and give it a navigate function. Leave `relayUrl` unset (it defaults
-to same-origin `""`), so the widget talks to the backend route you mount in
-step 4.
+manifest, and give it a navigate function. With no `provider` prop it uses
+Orchestra, and asks the app's own `/voice/token` (the route you mount in step 4)
+for its sessions; leave `relayUrl` unset (same origin).
 
 `VoiceProvider` is only the plumbing (context + an overlay host). The VISIBLE
 widget — the floating button and rim — is a separate component,
@@ -89,7 +94,7 @@ import manifest from "./.voice/manifest.json";
 <VoiceProvider
   manifest={manifest}
   navigate={(path) => router.push(path)}
-  // relayUrl defaults to "" = same origin -> the /voice route you mount in step 4.
+  // The engine defaults to Orchestra: the page asks this app's /voice/token (step 4).
   // Refresh the app's data after a voice write, or the change only shows on reload.
   // Wire this to THIS app's own cache invalidation -- see below.
   onAfterAction={refreshMyAppsData}
@@ -126,49 +131,81 @@ is to render it.)
 
 ## 4. Serve the backend route (required)
 
-The voice engine needs a **server half** that holds the keys — the browser never
-gets them. You do not run a separate service: you **mount one route in this same
-app**, served by `@expert/voice-server` (installed in step 1). The recipe is the
-same whatever the engine:
+The engine needs a **server half** that holds the key — the browser never gets
+it. You do not run a separate service: you **mount one route in this same app**,
+from `@expert/voice-server` (installed in step 1).
 
-> **set the key in env → mount the handler at `/voice` → the widget
-> (same-origin, step 3) calls it.**
+### Orchestra (the default)
 
-**OpenAI Realtime (the default engine).** The handler serves the whole `/voice`
-surface (`GET /options`, `POST /session`, `POST /log`) and mints with the app's
-own `OPENAI_API_KEY` — set that in the app's server env first:
+You need two values, which the developer gets when the app is registered with
+Orchestra: **`ORCHESTRA_KEY`** (the app's secret key) and **`ORCHESTRA_URL`**
+(the service). Registration also lists the origins the app's pages are served
+from (e.g. `https://app.example.com`, `http://localhost:3000`); the service
+refuses pages from any other origin. **If the developer does not have them yet,
+ask them for the key, the URL, and to register the origins you will test from;
+do not switch to OpenAI on your own.** Put both in the server's env (never in
+frontend code, never committed).
+
+Mount the token route at `/voice/token`:
 
 ```ts
-// app/voice/[...path]/route.ts   (Next.js App Router)
-import { openaiVoiceHandler } from "@expert/voice-server/openai";
-const handler = openaiVoiceHandler({ trustAuth: true }); // see "Guard the route"
-export const GET = handler;
-export const POST = handler;
+// app/voice/token/route.ts   (Next.js App Router)
+import { orchestraTokenHandler } from "@expert/voice-server/orchestra";
+export const POST = orchestraTokenHandler({ trustAuth: true }); // see "Guard the route"
 ```
 
-(Express: `app.use("/voice", express.json(), toExpressHandler(openaiVoiceHandler({ trustAuth: true })))`,
+(Express: `app.post("/voice/token", express.json(), toExpressHandler(orchestraTokenHandler({ trustAuth: true })))`,
 with `toExpressHandler` from the same import.)
 
-**Guard the route.** `/voice/session` mints tokens billed to the app's key, so
-an unauthenticated public route is an open, billable proxy. Pick one:
+That is the whole server half. The page gets a token from it, learns the
+service's address from it, and talks to Orchestra directly from then on; it
+renews the token itself.
+
+**Guard the route.** Whoever can call `/voice/token` can use voice on the app's
+Orchestra account, within its limits. Pick one:
 
 - The route already sits behind the app's login → `{ trustAuth: true }`.
-- Otherwise → `{ requireAuth: (req) => isLoggedIn(req) }` (false answers 401
-  before minting), or `{ secret: process.env.VOICE_SECRET }` that the app's own
-  backend injects as `Authorization: Bearer …` — never a secret shipped to the
-  page.
+- Otherwise → `{ requireAuth: (req) => isLoggedIn(req) }` (false answers 401),
+  or `{ secret: process.env.VOICE_SECRET }` that the app's own backend injects as
+  `Authorization: Bearer …` — never a secret shipped to the page.
 
 A per-IP rate limit (30/min) is on by default (`rateLimit: false` disables it).
 With no guard configured the handler warns once at startup.
 
-How to tell what's wrong: no key in the env → `/voice/session` returns
-`500: OPENAI_API_KEY is not set on the server.`; no route mounted → the widget
-reports `Could not reach the voice relay at … Is it running?` (or `answered 404
-with no JSON`). Both mean the route above is not mounted-and-keyed yet.
+**If the app sends a Content-Security-Policy**, its `connect-src` must allow
+`ORCHESTRA_URL` and `wss://api.elevenlabs.io` (live transcription streams from
+the page), and its `media-src` must allow `blob:` (the few spoken lines).
 
-The full provider contract (the BYOK rule, plugging in another realtime API) is **PROVIDERS.md**, which ships inside
-`@expert/voice` (`node_modules/@expert/voice/PROVIDERS.md`) and is in the
-[voice repo](https://github.com/OrchestraAssistant/voice/blob/main/PROVIDERS.md).
+How to tell what's wrong: `curl -X POST localhost:<port>/voice/token -H
+'content-type: application/json' -d '{}'` returns `{ token, url, ... }` when it
+works; `500: ORCHESTRA_URL and ORCHESTRA_KEY must be set` means the env is
+missing; `Orchestra refused this app's key` means the key is wrong; a widget
+error naming `/voice/token` means the route is not mounted; a CORS error in the
+browser console naming the Orchestra URL means the page's origin is not
+registered yet (ask the developer to add it).
+
+### OpenAI Realtime (the alternative)
+
+Only if the developer chooses it. Pass `provider={openaiRealtime()}` to
+`VoiceProvider` (import it from `@expert/voice`), set `OPENAI_API_KEY` in the
+server's env, and mount the relay at `/voice`; it serves `GET /options`,
+`POST /session`, `POST /log`:
+
+```ts
+// app/voice/[...path]/route.ts   (Next.js App Router)
+import { openaiVoiceHandler } from "@expert/voice-server/openai";
+const handler = openaiVoiceHandler({ trustAuth: true }); // guard it as above
+export const GET = handler;
+export const POST = handler;
+```
+
+(Express: `app.use("/voice", express.json(), toExpressHandler(openaiVoiceHandler({ trustAuth: true })))`.)
+`/voice/session` mints tokens billed to the app's own OpenAI key, so guard it
+the same way. No key → `500: OPENAI_API_KEY is not set on the server.`
+
+The full provider contract (plugging in another engine) is **PROVIDERS.md**,
+which ships inside `@expert/voice` (`node_modules/@expert/voice/PROVIDERS.md`)
+and is in the [voice repo](https://github.com/OrchestraAssistant/voice/blob/main/PROVIDERS.md).
 
 ## Dev-server and HTTPS notes
 
@@ -176,13 +213,18 @@ The full provider contract (the BYOK rule, plugging in another realtime API) is 
   to the backend (Vite: `server: { proxy: { "/voice": "http://localhost:<api-port>" } }`).
 - The microphone needs HTTPS or `localhost`, and an HTTPS page cannot call an
   `http://` backend (mixed content), so keep `/voice` same-origin.
+- Orchestra checks the page's origin: the dev server's origin
+  (`http://localhost:<port>`) must be registered too, or the browser reports a
+  CORS error.
 
 ## What "done" looks like
 
 - `.voice/manifest.json` + `.voice/manifest.overlay.json` exist, and the flagged
   operations have real descriptions and group tiers.
-- The provider is mounted, and the `/voice` route (step 4) is served by this app
-  with its key in env — `curl localhost:<port>/voice/options` returns a model list.
+- The provider is mounted, and the token route (step 4) is served by this app
+  with its key in env — `curl -X POST localhost:<port>/voice/token -H
+  'content-type: application/json' -d '{}'` returns a token and a url (for
+  OpenAI Realtime: `curl localhost:<port>/voice/options` returns a model list).
 - A voice session (driven by a human with a microphone) can navigate the app and
   run its operations by voice. In a headless container you can verify everything
   up to that last step — the manifest and the wiring — without a live call.

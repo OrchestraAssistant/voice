@@ -1,6 +1,6 @@
 {
   "name": "@expert/voice",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Voice control for React apps: realtime agent, manifest-driven actions, DOM fallback.",
   "license": "MIT",
   "repository": {
