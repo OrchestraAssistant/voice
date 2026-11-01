@@ -112,4 +112,59 @@ describe("the Orchestra provider", () => {
     assert.deepEqual(f.seen.map((s) => [s.path, s.auth]), [["/v1/stt-token", "Bearer t1"], ["/v1/speak", "Bearer t1"]]);
     assert.deepEqual(f.seen[1].body, { text: "Delete it?", turnId: "t_9" });
   });
+
+  test("a handed-off turn comes back as a task: run on the page while the user goes on, its line when they stop speaking", async () => {
+    const seen = [];
+    let release;
+    const held = new Promise((r) => { release = r; });
+    const json = (obj) => new Response(JSON.stringify(obj), { status: 200, headers: { "content-type": "application/json" } });
+    const fetchImpl = async (url, init = {}) => {
+      const body = init.body ? JSON.parse(init.body) : {};
+      if (url === "/voice/token") return json({ token: "t1", session: "ses_1", url: "https://orchestra.test" });
+      const path = url.replace("https://orchestra.test", "");
+      seen.push({ path, body });
+      if (path === "/v1/manifest") return json({ hash: "h1" });
+      if (path === "/v1/turn") {
+        const first = seen.filter((s) => s.path === "/v1/turn").length === 1;
+        return json({ done: { say: null, turnId: first ? "t_1" : "t_2", ...(first && { task: { id: "k_1", start: "sealed-start" } }) }, state: "sealed-state" });
+      }
+      if (path === "/v1/task") {
+        if (!body.cont) { await held; return json({ needs: [{ id: "p:1", kind: "tool", args: { name: "navigate", args: { path: "/tasks" } } }], cont: "task-1" }); }
+        return json({ done: { say: "April or August?", taskId: "k_1", turnId: "t_1", result: "sealed-result" } });
+      }
+      if (path === "/v1/keyterms") return json({ done: { keyterms: [], recordTerms: [] } });
+      return json({ ok: true });
+    };
+    const stt = fakeStt();
+    const spoken = [];
+    const busy = [];
+    const calls = [];
+    const provider = orchestra({ fetchImpl, stt, tts: { speak: async (t) => { spoken.push(t); }, cancel() {} } });
+    await provider.connect({
+      manifest: { routes: [] },
+      callbacks: { onToolCall: async (n, a) => { calls.push([n, a]); return n === "dom_snapshot" ? { elements: [] } : { ok: true }; }, onActivity: (a) => busy.push(a.agentBusy) },
+    });
+    await stt.handlers.onFinal("move the month tasks around");
+    assert.equal(seen.find((s) => s.path === "/v1/turn").body.tasks, true);
+    await tick();
+    assert.ok(seen.some((s) => s.path === "/v1/task" && s.body.task === "sealed-start"));
+    assert.equal(busy.at(-1), true); // working on it
+
+    stt.handlers.onSpeechStart(); // the user is talking when the task's question is ready
+    release();
+    await tick();
+    assert.ok(calls.some(([n, a]) => n === "navigate" && a.path === "/tasks"));
+    assert.deepEqual(spoken, []);
+    stt.handlers.onSpeechEnd();
+    await tick();
+    assert.deepEqual(spoken, ["April or August?"]);
+
+    // The next turn carries what the task did, and says how many are running.
+    await stt.handlers.onFinal("April");
+    const second = seen.filter((s) => s.path === "/v1/turn")[1].body;
+    assert.deepEqual(second.finished, ["sealed-result"]);
+    assert.equal(second.turn.running, 0);
+    await stt.handlers.onFinal("thanks");
+    assert.equal(seen.filter((s) => s.path === "/v1/turn")[2].body.finished, undefined); // taken in, not sent again
+  });
 });

@@ -14,6 +14,10 @@
  * turn is done. What the service remembers between requests travels with
  * them, sealed: the page can neither read nor change it.
  *
+ * A turn the service hands to its model comes back at once as a task: the
+ * page runs it while the user goes on talking (one task at a time), and its
+ * line, if it has one, waits until the user is not speaking.
+ *
  * Keys: the app registers with Orchestra and gets a secret key. Its server
  * mounts one route (@expert/voice-server/orchestra) that trades the key for a
  * short-lived session token; the page asks that route, never holds the key.
@@ -160,17 +164,17 @@ function hosted({ service, stt, tts, log, id }) {
 
       // The first tool that changes or opens something is when the turn took effect.
       const EFFECTS = new Set(["navigate", "run_action", "dom_click", "dom_type", "dom_highlight", "confirm_pending_action", "cancel_pending_action"]);
-      let effect = null;
-      const run = async (name, args) => {
-        if (effect && !effect.at && EFFECTS.has(name)) effect.at = Date.now();
+      let effect = null; // the turn's; a task times its own
+      const run = async (name, args, eff = effect) => {
+        if (eff && !eff.at && EFFECTS.has(name)) eff.at = Date.now();
         return (await cb.onToolCall?.(name, args)) ?? null;
       };
-      const runNeed = async (need) => {
-        if (need.kind === "tool") return run(need.args.name, need.args.args);
+      const runNeed = async (need, eff = effect) => {
+        if (need.kind === "tool") return run(need.args.name, need.args.args, eff);
         if (need.kind === "steps") {
           const out = [];
           for (const s of need.args.steps) {
-            const result = await run(s.name, s.args);
+            const result = await run(s.name, s.args, eff);
             out.push({ name: s.name, result });
             if (result?.error) break;
           }
@@ -182,7 +186,18 @@ function hosted({ service, stt, tts, log, id }) {
       let state = null; // sealed: the service's, between turns
       let stopped = false;
       let busy = Promise.resolve();
-      const activity = (userSpeaking, agentBusy) => cb.onActivity?.({ userSpeaking, agentBusy });
+      // Tasks: turns the service handed to its model, run here one at a time
+      // while the turns go on. What each did comes back sealed (finished) and
+      // goes up with the next requests, until a turn's state has taken it in.
+      let tasks = Promise.resolve();
+      let running = 0;
+      let finished = [];
+      let generation = 0; // a cancel stops the tasks started before it
+      let userSpeaking = false;
+      let turnBusy = false;
+      let quiet = []; // waiting for the user to stop speaking
+      const showActivity = () => cb.onActivity?.({ userSpeaking, agentBusy: turnBusy || running > 0 });
+      const activity = (speaking, busyNow) => { userSpeaking = speaking; turnBusy = busyNow; showActivity(); };
       const route = () => (typeof location !== "undefined" ? location.pathname : "/");
       const report = (record) => log && service.call("/v1/log", record).catch(() => {});
 
@@ -199,19 +214,71 @@ function hosted({ service, stt, tts, log, id }) {
         }
       }
 
-      const say = async (text, entry) => {
-        if (!text) return;
-        cb.onTranscript?.({ role: "assistant", text });
-        if (!tts) return;
-        stt.setEnabled?.(false); // do not hear ourselves
-        try {
-          await tts.speak(text, { onStart: () => { if (entry?.speechEndedAt) entry.replyMs = Date.now() - entry.speechEndedAt; } });
-        } catch {
-          /* the line is on screen either way */
-        } finally {
-          stt.setEnabled?.(true);
-        }
+      // One line at a time: a task's line and a turn's never talk over each other.
+      let speaking = Promise.resolve();
+      const say = (text, entry, turnId) => {
+        if (!text) return Promise.resolve();
+        speaking = speaking.then(async () => {
+          cb.onTranscript?.({ role: "assistant", text });
+          if (!tts) return;
+          service.turnId = turnId ?? null;
+          stt.setEnabled?.(false); // do not hear ourselves
+          try {
+            await tts.speak(text, { onStart: () => { if (entry?.speechEndedAt) entry.replyMs = Date.now() - entry.speechEndedAt; } });
+          } catch {
+            /* the line is on screen either way */
+          } finally {
+            service.turnId = null;
+            stt.setEnabled?.(true);
+          }
+        });
+        return speaking;
       };
+      /** A task's line waits for the user to finish what they are saying. */
+      const sayWhenQuiet = async (text, turnId) => {
+        if (!text) return;
+        if (userSpeaking) await new Promise((resolve) => quiet.push(resolve));
+        await say(text, null, turnId);
+      };
+
+      function startTask(t) {
+        const gen = generation;
+        running++;
+        showActivity();
+        tasks = tasks.then(async () => {
+          const t0 = Date.now();
+          const entry = { type: "timing", taskId: t.id };
+          const eff = { at: null };
+          const live = () => !stopped && gen === generation;
+          try {
+            if (!live()) throw new Error("cancelled");
+            const need = async (n) => {
+              if (!live()) throw new Error("cancelled");
+              return runNeed(n, eff);
+            };
+            const r = await play(service, "/v1/task", { task: t.start, finished: [...finished] }, need);
+            const d = r.done;
+            finished.push(d.result);
+            if (d.corePending !== undefined) pendingInCore = d.corePending;
+            entry.turnId = d.turnId;
+            entry.doneMs = Date.now() - t0;
+            if (eff.at) entry.effectMs = eff.at - t0;
+            if (live()) await sayWhenQuiet(d.say, d.turnId);
+            refreshKeyterms({ reread: true });
+          } catch (err) {
+            if (err.message === "cancelled") entry.cancelled = true;
+            else {
+              entry.error = String(err.message ?? err).slice(0, 300);
+              if (live()) await sayWhenQuiet("That didn't work.");
+            }
+          } finally {
+            running--;
+            entry.totalMs = Date.now() - t0;
+            showActivity();
+            report(entry);
+          }
+        });
+      }
 
       async function handleTurn(text, heardMs, { typed = false } = {}) {
         if (stopped || !text) return;
@@ -227,9 +294,19 @@ function hosted({ service, stt, tts, log, id }) {
         let refresh = false;
         try {
           const screen = (await run("dom_snapshot", {}))?.elements ?? [];
-          const r = await play(service, "/v1/turn", { manifest: service.manifestHash, turn: { utterance: text, route: route(), screen, pending: pendingInCore, today: localToday() }, ...(state && { state }) }, runNeed);
+          const sent = [...finished];
+          const r = await play(service, "/v1/turn", {
+            manifest: service.manifestHash,
+            turn: { utterance: text, route: route(), screen, pending: pendingInCore, today: localToday(), running },
+            tasks: true,
+            ...(sent.length && { finished: sent }),
+            ...(state && { state }),
+          }, runNeed);
           const d = r.done;
           state = r.state;
+          finished = finished.filter((f) => !sent.includes(f)); // the state has them now
+          if (d.cancelTasks) generation++;
+          if (d.task) startTask(d.task);
           entry.turnId = d.turnId;
           refresh = d.refresh;
           if (d.corePending !== undefined) pendingInCore = d.corePending;
@@ -239,13 +316,11 @@ function hosted({ service, stt, tts, log, id }) {
             if (t === "hang_up") cb.onHangUp?.({ because: text });
             if (t === "back" && typeof window !== "undefined") window.history.back();
           }
-          service.turnId = d.turnId;
-          await say(d.say, entry);
+          await say(d.say, entry, d.turnId);
         } catch (err) {
           entry.error = String(err.message ?? err).slice(0, 300);
           await say("Sorry, something went wrong.");
         } finally {
-          service.turnId = null;
           effect = null;
           entry.totalMs = Date.now() - t0;
           delete entry.speechEndedAt;
@@ -267,7 +342,11 @@ function hosted({ service, stt, tts, log, id }) {
         withMic: deps.withMic !== false,
         onFinal: (text) => queue(text),
         onSpeechStart: () => { tts?.cancel?.(); activity(true, false); },
-        onSpeechEnd: () => { speechEndedAt = Date.now(); activity(false, true); },
+        onSpeechEnd: () => {
+          speechEndedAt = Date.now();
+          activity(false, true);
+          for (const resolve of quiet.splice(0)) resolve();
+        },
         onError: () => say("I didn't catch that."),
       });
       refreshKeyterms();
@@ -282,6 +361,7 @@ function hosted({ service, stt, tts, log, id }) {
       return {
         stop() {
           stopped = true;
+          for (const resolve of quiet.splice(0)) resolve();
           stt.stop?.();
           tts?.cancel?.();
           cb.onStatus?.("closed");
